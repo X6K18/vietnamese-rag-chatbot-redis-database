@@ -1,625 +1,428 @@
-# 🚀 Vietnamese Realtime RAG Chatbot with Redis + PhoBERT + Ollama
+# Vietnamese Realtime RAG Chatbot
 
-## 📌 Tổng Quan Dự Án
-
-Đây là phiên bản nâng cấp của hệ thống Vietnamese RAG Chatbot hiện tại.
-
-Hệ thống mới được cải tiến theo hướng:
-
-* Realtime AI System
-* Redis Realtime Database
-* Semantic Retrieval
-* Session Memory
-* Embedding Cache
-* Docker Deployment
-* Production Architecture
-
-Công nghệ sử dụng:
-
-* PhoBERT
-* Sentence Transformers
-* Redis
-* FAISS
-* Ollama
-* FastAPI
-* Streamlit
-* Docker
+Hệ thống chatbot tiếng Việt thời gian thực sử dụng **Retrieval-Augmented Generation (RAG)** kết hợp **Redis**, **PhoBERT**, **FAISS**, và **Ollama**.
 
 ---
 
-# 🧠 Kiến Trúc Mới
+## Mục lục
 
-```text
-                ┌────────────────────┐
-                │     Frontend       │
-                │    Streamlit UI    │
-                └─────────┬──────────┘
-                          │
-                          ▼
-                ┌────────────────────┐
-                │      FastAPI       │
-                │    Backend API     │
-                └─────────┬──────────┘
-                          │
-         ┌────────────────┴────────────────┐
-         │                                 │
-         ▼                                 ▼
-┌───────────────────┐          ┌────────────────────┐
-│ Redis Chat Memory │          │ Redis Embedding    │
-│ Session History   │          │ Cache              │
-└───────────────────┘          └────────────────────┘
-         │                                 │
-         └────────────────┬────────────────┘
-                          ▼
-                ┌────────────────────┐
-                │ PhoBERT Classifier │
-                └─────────┬──────────┘
-                          ▼
-                ┌────────────────────┐
-                │  FAISS Retrieval   │
-                └─────────┬──────────┘
-                          ▼
-                ┌────────────────────┐
-                │    Ollama LLM      │
-                │   qwen2.5:1.5b     │
-                └─────────┬──────────┘
-                          ▼
-                ┌────────────────────┐
-                │  Streaming Answer  │
-                └────────────────────┘
+- [Mục đích dự án](#mục-đích-dự-án)
+- [Kiến trúc hệ thống](#kiến-trúc-hệ-thống)
+- [Lý thuyết nền tảng](#lý-thuyết-nền-tảng)
+  - [Retrieval-Augmented Generation (RAG)](#1-retrieval-augmented-generation-rag)
+  - [Embedding và Vector Search](#2-embedding-và-vector-search)
+  - [PhoBERT (Vietnamese BERT)](#3-phobert-vietnamese-bert)
+  - [Maximum Marginal Relevance (MMR)](#4-maximum-marginal-relevance-mmr)
+  - [FAISS (Facebook AI Similarity Search)](#5-faiss-facebook-ai-similarity-search)
+- [Công nghệ sử dụng](#công-nghệ-sử-dụng)
+- [Cấu trúc thư mục](#cấu-trúc-thư-mục)
+- [Pipeline xử lý](#pipeline-xử-lý)
+- [Các thành phần chi tiết](#các-thành-phần-chi-tiết)
+- [Cài đặt và chạy](#cài-đặt-và-chạy)
+- [API Endpoints](#api-endpoints)
+
+---
+
+## Mục đích dự án
+
+Xây dựng một **hệ thống chatbot thông minh** có khả năng:
+
+- **Hiểu câu hỏi tiếng Việt** thông qua PhoBERT分类
+- **Truy xuất thông tin chính xác** từ kho dữ liệu báo chí Việt Nam (hơn 36,000 đoạn văn bản đã được chunk)
+- **Trả lời có trích dẫn nguồn** nhờ cơ chế RAG
+- **Ghi nhớ hội thoại theo phiên** qua Redis
+- **Streaming realtime** như ChatGPT
+- **Đề xuất câu hỏi gợi ý** để tương tác tự nhiên hơn
+- **Fallback thông minh**: nếu không tìm thấy tài liệu phù hợp, dùng kiến thức riêng của Ollama để trả lời
+
+---
+
+## Kiến trúc hệ thống
+
+```
+User
+  |
+  v
++------------------+       +------------------+
+|   Streamlit App  | <---> |  FastAPI Server  |
+|   (Frontend)     |       |  (Backend)       |
++------------------+       +--------+---------+
+                                    |
+                     +--------------+--------------+
+                     |              |              |
+                     v              v              v
+              +-----------+  +----------+  +------------+
+              |  PhoBERT  |  |  FAISS   |  |   Redis    |
+              | Classifier|  |  Index   |  | Chat + Emb |
+              +-----------+  +----------+  +------------+
+                     |              |              |
+                     +------+-------+              |
+                            |                      |
+                            v                      v
+                     +-----------+          +------------+
+                     |  Ollama   |          |  36,506    |
+                     | qwen2.5   |          |  Documents |
+                     +-----------+          +------------+
+                            |
+                            v
+                    Streaming Answer
+                    (NDJSON events)
 ```
 
+### Luồng xử lý
+
+1. **User** gửi câu hỏi qua Streamlit UI
+2. **FastAPI** nhận request, gửi đến PhoBERT Classifier để phân loại chủ đề
+3. **Query Expansion**: Mở rộng câu hỏi với chủ đề đã phân loại
+4. **RAG Retrieval**: FAISS tìm kiếm vector tương đồng với câu hỏi đã mở rộng
+5. **MMR Rerank**: Sắp xếp lại kết quả để đảm bảo đa dạng thông tin
+6. **Kiểm tra độ liên quan**: Nếu tất cả documents có score < 0.3, dùng fallback Ollama
+7. **Ollama LLM** sinh câu trả lời dựa trên context + lịch sử hội thoại
+8. **Redis** lưu tin nhắn mới và tóm tắt hội thoại nếu cần
+9. **Streaming response** trả về dưới dạng NDJSON (token, sources, follow_up, done)
+
 ---
 
-# 📂 Cấu Trúc Thư Mục Mới
+## Lý thuyết nền tảng
 
-```text
+### 1. Retrieval-Augmented Generation (RAG)
+
+**RAG** là kiến trúc kết hợp giữa **truy xuất thông tin** (Retrieval) và **sinh văn bản** (Generation). Thay vì chỉ dùng kiến thức có sẵn trong mô hình ngôn ngữ, RAG cho phép mô hình truy xuất thông tin từ một kho dữ liệu bên ngoài trước khi sinh câu trả lời.
+
+#### Công thức
+
+Cho câu hỏi $q$, tìm tập tài liệu $D_{rel} = \{d_1, d_2, ..., d_k\}$ từ kho $D$:
+
+$$D_{rel} = \text{top-}k \left( \text{sim}(q, d_i) \right), \forall d_i \in D$$
+
+Sau đó, mô hình ngôn ngữ $M$ sinh câu trả lời $a$ dựa trên:
+
+$$a = M(q, D_{rel}, h)$$
+
+Trong đó $h$ là lịch sử hội thoại.
+
+#### Lợi ích
+
+- **Giảm ảo giác (hallucination)**: Mô hình dựa trên tài liệu thực tế
+- **Cập nhật dễ dàng**: Chỉ cần cập nhập kho dữ liệu, không cần fine-tune model
+- **Kiểm soát nguồn gốc**: Có thể trích dẫn chính xác tài liệu gốc
+
+---
+
+### 2. Embedding và Vector Search
+
+#### Sentence Embedding
+
+Chuyển văn bản thành vector số học có chiều cố định (768 chiều trong project này) bằng mô hình **SentenceTransformer**:
+
+$$\text{emb}(t) = E(t) \in \mathbb{R}^{768}$$
+
+Trong đó $E$ là mô hình `keepitreal/vietnamese-sbert`.
+
+#### Similarity Search (L2 Distance)
+
+FAISS index sử dụng **L2 distance (Euclidean)**:
+
+$$d(q, d_i) = \sqrt{\sum_{j=1}^{768} (q_j - d_{i,j})^2}$$
+
+Điểm tương đồng được chuyển thành **relevance score**:
+
+$$\text{score}(q, d_i) = \frac{1}{1 + d(q, d_i)} \in (0, 1]$$
+
+Score càng gần 1 càng liên quan.
+
+---
+
+### 3. PhoBERT (Vietnamese BERT)
+
+**PhoBERT** ([Nguyen & Nguyen, 2020](https://github.com/VinAIResearch/PhoBERT)) là phiên bản BERT được tiền huấn luyện riêng cho tiếng Việt, dựa trên kiến trúc **RoBERTa**. PhoBERT vượt trội so với đa ngữ BERT trên các tác vụ NLP tiếng Việt.
+
+Trong project này, PhoBERT được fine-tune để **phân loại chủ đề** cho câu hỏi đầu vào. Mô hình classification:
+
+$$P(y=c | q) = \text{softmax}(W \cdot \text{PhoBERT}(q) + b)$$
+
+Với 11 lớp chủ đề: `the_gioi`, `phap_luat`, `xa_hoi`, `kinh_te`, `y_te`, `thoi_su`, `the_thao`, `truyen_hinh`, `du_lich`, `van_hoa`, `thi_truong`.
+
+---
+
+### 4. Maximum Marginal Relevance (MMR)
+
+**MMR** là kỹ thuật đa dạng hóa kết quả tìm kiếm, cân bằng giữa **độ liên quan** và **độ đa dạng**:
+
+$$\text{MMR} = \arg\min_{d_i \in C \setminus S} \left[ \lambda \cdot \text{sim}(q, d_i) - (1-\lambda) \cdot \max_{d_j \in S} \text{sim}(d_i, d_j) \right]$$
+
+Trong đó:
+- $C$: tập ứng viên, $S$: tập đã chọn (ban đầu rỗng)
+- $\text{sim}(q, d_i)$: độ tương đồng giữa câu hỏi và tài liệu
+- $\text{sim}(d_i, d_j)$: độ tương đồng giữa hai tài liệu
+- $\lambda \in [0, 1]$: tham số cân bằng (mặc định 0.5)
+
+**Ý nghĩa**:
+- $\lambda = 1$: Chỉ quan tâm độ liên quan (giống search thuần)
+- $\lambda = 0$: Chỉ quan tâm độ đa dạng
+- $\lambda = 0.5$: Cân bằng cả hai
+
+---
+
+### 5. FAISS (Facebook AI Similarity Search)
+
+FAISS là thư viện tìm kiếm tương đồng vector hiệu năng cao của Meta. Project sử dụng **IndexFlatL2** - index brute-force chính xác tuyệt đối:
+
+$$I, D = \text{FAISS.search}(q, k \cdot 5)$$
+
+Trả về chỉ số $I$ và khoảng cách $D$ của $k \cdot 5$ kết quả gần nhất, sau đó lọc theo category và áp dụng MMR.
+
+#### Quy mô index
+- **36,506 vectors** (tương ứng 36,506 đoạn văn bản chunk từ 6,256 bài báo)
+- **768 chiều** mỗi vector
+- Khoảng cách L2 (Euclidean)
+
+---
+
+## Công nghệ sử dụng
+
+| Công nghệ | Vai trò | Lý do chọn |
+|-----------|---------|------------|
+| **FastAPI** | Backend API framework | Async, performance, tự động document |
+| **Streamlit** | Frontend UI | Python-native, nhanh, đẹp |
+| **Redis** | Chat memory + Embedding cache | In-memory database siêu nhanh, realtime |
+| **PhoBERT** | Text classification (chủ đề) | State-of-the-art cho tiếng Việt |
+| **FAISS** | Vector similarity search | Index 36k vectors chỉ vài ms |
+| **Sentence-Transformers** | Text embedding | `keepitreal/vietnamese-sbert` tối ưu cho tiếng Việt |
+| **Ollama** | LLM inference (Qwen2.5:1.5b) | Chạy local, không cần GPU mạnh |
+| **NumPy** | Numerical computation | Xử lý vector, ma trận |
+| **scikit-learn** | Label encoding | Mã hóa nhãn chủ đề |
+| **Torch** | Deep learning framework | Chạy PhoBERT |
+
+---
+
+## Cấu trúc thư mục
+
+```
 project/
 │
-├── app/
-│   ├── frontend/
-│   │   └── streamlit_app.py
+├── backend/
+│   ├── main.py              # FastAPI server, endpoints
+│   ├── config.py            # Cấu hình (model path, Redis, Ollama)
+│   ├── models.py            # (reserved)
+│   ├── utils.py             # (reserved)
 │   │
-│   ├── backend/
-│   │   ├── api.py
-│   │   ├── rag.py
-│   │   ├── llm.py
-│   │   ├── utils.py
-│   │   ├── redis_manager.py
-│   │   ├── embedding_cache.py
-│   │   └── auth.py
-│   │
-│   ├── models/
-│   │   ├── phobert_model/
-│   │   ├── phobert_tokenizer/
-│   │   └── label_encoder.joblib
-│   │
-│   ├── data/
-│   │   ├── faiss.index
-│   │   ├── data.pkl
-│   │   └── news_dataset.csv
-│   │
-│   ├── docker-compose.yml
-│   ├── Dockerfile
-│   └── requirements.txt
+│   └── services/
+│       ├── classifier.py    # PhoBERT text classification
+│       ├── rag.py           # FAISS retrieval + MMR reranking
+│       ├── llm.py           # Ollama prompt building + streaming
+│       └── redis_client.py  # Redis chat history + embedding cache
 │
+├── frontend/
+│   └── app.py               # Streamlit chat UI
+│
+├── models/
+│   ├── phobert_model/       # Fine-tuned PhoBERT weights
+│   ├── phobert_tokenizer/   # PhoBERT tokenizer
+│   └── label_encoder.joblib # Label encoder (11 categories)
+│
+├── data/
+│   ├── news_dataset.csv     # 6,256 bài báo gốc (32 MB)
+│   ├── data.pkl             # 36,506 chunks (33 MB)
+│   └── faiss.index          # 36,506 vectors 768-d (112 MB)
+│
+├── tests/
+│   ├── test_redis.py        # Kiểm tra kết nối Redis
+│   └── test_api.py          # Kiểm tra API endpoint
+│
+├── requirements.txt
 └── README.md
 ```
 
 ---
 
-# 🔥 Redis Integration
+## Pipeline xử lý
 
-## Redis được dùng cho:
+### 1. Classification
 
-| Feature         | Vai trò                |
-| --------------- | ---------------------- |
-| Chat Memory     | Lưu lịch sử hội thoại  |
-| Embedding Cache | Cache vector embedding |
-| Session Store   | Quản lý user session   |
-| Realtime Layer  | Tăng tốc inference     |
-| Queue System    | Background processing  |
+```
+Câu hỏi: "Giá xăng dầu hôm nay thế nào?"
+  |
+  v
+PhoBERT Tokenizer + Model
+  |
+  v
+Chủ đề: "kinh_te" (confidence: 0.92)
+```
+
+### 2. Query Expansion
+
+```
+Câu hỏi gốc: "Giá xăng dầu hôm nay thế nào?"
+Chủ đề: "kinh_te"
+  |
+  v
+Câu hỏi mở rộng: "Giá xăng dầu hôm nay thế nào? (thuộc chủ đề kinh_te)"
+```
+
+### 3. Retrieval (FAISS + MMR)
+
+```
+Câu hỏi đã mở rộng
+  |
+  v
+Sentence-Transformer Embedding (768-d)
+  |
+  v
+FAISS IndexFlatL2 search → top 15 candidates
+  |
+  | (lọc theo category = "kinh_te")
+  v
+Category filtering → còn lại các document kinh_tế
+  |
+  | (nếu < kết quả, MMR đa dạng hóa)
+  v
+Top 3 documents với score và source
+```
+
+### 4. Relevance Check
+
+```
+Max score >= 0.3?
+  |
+  ├── YES → Prompt RAG (yêu cầu trích dẫn tài liệu)
+  |
+  └── NO → Prompt Fallback (dùng kiến thức Ollama)
+```
+
+### 5. Generation (Ollama)
+
+```
+Prompt (context + history + query)
+  |
+  v
+Qwen2.5:1.5b (streaming)
+  |
+  v
+Answer tokens → NDJSON events
+```
+
+### 6. Post-processing
+
+```
+Sau khi stream hoàn tất:
+  |
+  ├── Lưu câu trả lời vào Redis
+  ├── Gửi sources event
+  ├── Gửi follow_up event (sinh bằng Ollama)
+  └── Gửi done event
+```
 
 ---
 
-# 🧩 redis_manager.py
+## Các thành phần chi tiết
+
+### `backend/services/classifier.py` - Phân loại chủ đề
+
+Dùng PhoBERT fine-tuned với `AutoModelForSequenceClassification`. Đầu vào là câu hỏi tiếng Việt, đầu ra là một trong 11 chủ đề.
+
+**Activation**: softmax trên logits cuối cùng
+
+### `backend/services/rag.py` - Truy xuất và rerank
+
+- **FAISS IndexFlatL2**: Tìm kiếm chính xác bằng L2 distance
+- **MMR Reranking**: Công thức $\lambda \cdot \text{sim}(q,d_i) - (1-\lambda) \cdot \max \text{sim}(d_i, d_j)$
+- **Category filtering**: Lọc tài liệu trùng chủ đề với câu hỏi
+
+### `backend/services/llm.py` - Sinh câu trả lời
+
+- **build_prompt()**: Xây dựng prompt với context và lịch sử
+- **expand_query()**: Mở rộng câu hỏi với chủ đề
+- **has_relevant_docs()**: Kiểm tra ngưỡng relevance score >= 0.3
+- **generate_follow_up()**: Sinh câu hỏi gợi ý bằng Ollama
+- **generate_stream()**: Stream câu trả lời từ Ollama, bắt lỗi ConnectionError
+
+### `backend/services/redis_client.py` - Redis operations
+
+- **Chat history**: Lưu và truy xuất lịch sử hội thoai với `RPUSH` / `LRANGE`
+- **Conversation summarization**: Khi session > 20 messages, tóm tắt và trim list
+- **Embedding cache**: Cache vector embedding với `SETEX` / `GET` (TTL: 1 giờ)
+
+### `backend/config.py` - Cấu hình
 
 ```python
-import redis
-import json
+OLLAMA_MODEL = "qwen2.5:1.5b"
+EMBED_MODEL = "keepitreal/vietnamese-sbert"
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+REDIS_TTL = 3600  # 1 giờ
+```
 
+### `frontend/app.py` - Giao diện người dùng
 
-class RedisManager:
-    def __init__(self):
-        self.redis_client = redis.Redis(
-            host="redis",
-            port=6379,
-            decode_responses=True
-        )
+- Đăng nhập với hardcoded users
+- Hiển thị lịch sử chat + nguồn tham khảo (expander)
+- Nút câu hỏi gợi ý có thể click để gửi tiếp
+- Admin panel quản lý session
 
-    # =========================
-    # CHAT HISTORY
-    # =========================
+---
 
-    def save_message(self, session_id, role, content):
-        key = f"chat:{session_id}"
+## API Endpoints
 
-        message = {
-            "role": role,
-            "content": content
-        }
+| Method | Endpoint | Mô tả |
+|--------|----------|-------|
+| GET | `/` | Health check |
+| GET | `/health` | Health check + Redis ping |
+| POST | `/chat/stream` | Chat streaming (NDJSON) |
+| POST | `/chat/sync` | Chat đồng bộ (JSON) |
+| GET | `/chat/history?session_id=...` | Lịch sử chat |
+| DELETE | `/chat/history?session_id=...` | Xóa lịch sử |
+| GET | `/admin/sessions` | List sessions (admin) |
+| GET | `/admin/history/{session_id}` | Xem history (admin) |
 
-        self.redis_client.rpush(key, json.dumps(message))
+### NDJSON Stream Format
 
-    def get_history(self, session_id):
-        key = f"chat:{session_id}"
-
-        messages = self.redis_client.lrange(key, 0, -1)
-
-        return [json.loads(m) for m in messages]
-
-    def clear_history(self, session_id):
-        key = f"chat:{session_id}"
-        self.redis_client.delete(key)
-
-    # =========================
-    # EMBEDDING CACHE
-    # =========================
-
-    def get_embedding(self, text):
-        key = f"embedding:{text}"
-
-        value = self.redis_client.get(key)
-
-        if value:
-            return json.loads(value)
-
-        return None
-
-    def save_embedding(self, text, embedding):
-        key = f"embedding:{text}"
-
-        self.redis_client.set(
-            key,
-            json.dumps(embedding)
-        )
+```json
+{"type": "token", "content": "Xin chào..."}
+{"type": "token", "content": " đây là câu trả lời"}
+{"type": "sources", "content": [{"title": "...", "url": "...", "score": 0.85}]}
+{"type": "follow_up", "content": ["Câu hỏi 1?", "Câu hỏi 2?"]}
+{"type": "done"}
 ```
 
 ---
 
-# 🧠 embedding_cache.py
+## Cài đặt và chạy
 
-```python
-from sentence_transformers import SentenceTransformer
-from redis_manager import RedisManager
+### Yêu cầu
 
+- Python 3.10+
+- Redis server (chạy local hoặc Docker)
+- Ollama (chạy local với `qwen2.5:1.5b`)
 
-class EmbeddingCache:
-    def __init__(self):
-        self.model = SentenceTransformer(
-            "keepitreal/vietnamese-sbert"
-        )
+### Cài đặt
 
-        self.redis = RedisManager()
-
-    def encode(self, text):
-
-        cached = self.redis.get_embedding(text)
-
-        if cached:
-            return cached
-
-        embedding = self.model.encode([text])[0].tolist()
-
-        self.redis.save_embedding(text, embedding)
-
-        return embedding
+```bash
+pip install -r requirements.txt
 ```
 
----
+### Chạy backend
 
-# 🔎 rag.py (Realtime Version)
-
-```python
-import faiss
-import pickle
-import numpy as np
-
-from embedding_cache import EmbeddingCache
-
-
-class RAG:
-    def __init__(self, index_path, data_path):
-
-        self.index = faiss.read_index(index_path)
-
-        with open(data_path, "rb") as f:
-            self.data = pickle.load(f)
-
-        self.encoder = EmbeddingCache()
-
-    def search(self, query, category=None, k=3):
-
-        q_emb = self.encoder.encode(query)
-
-        q_emb = np.array([q_emb]).astype("float32")
-
-        D, I = self.index.search(q_emb, k * 5)
-
-        results = []
-
-        for idx in I[0]:
-
-            item = self.data[idx]
-
-            if category:
-                if item["category"] != category:
-                    continue
-
-            results.append(item)
-
-            if len(results) == k:
-                break
-
-        return results
+```bash
+uvicorn backend.main:app --reload --port 8000
 ```
 
----
+### Chạy frontend
 
-# 🤖 llm.py (Improved Prompt)
-
-```python
-import ollama
-
-
-def build_prompt(query, docs, history=None):
-
-    context = "\n\n".join([
-        f"[{i+1}] {doc['text']}"
-        for i, doc in enumerate(docs)
-    ])
-
-    history_text = ""
-
-    if history:
-        history_text += "## CHAT HISTORY\n"
-
-        for msg in history[-5:]:
-            role = "User" if msg["role"] == "user" else "Assistant"
-            history_text += f"{role}: {msg['content']}\n"
-
-    return f"""
-Bạn là trợ lý AI tiếng Việt.
-
-QUY TẮC:
-- Chỉ sử dụng context.
-- Không được bịa thông tin.
-- Nếu không có dữ liệu thì nói không tìm thấy.
-
-{history_text}
-
-## CONTEXT
-{context}
-
-## QUESTION
-{query}
-
-## ANSWER
-"""
-
-
-def generate_answer(query, docs, history=None):
-
-    prompt = build_prompt(
-        query=query,
-        docs=docs,
-        history=history
-    )
-
-    response = ollama.chat(
-        model="qwen2.5:1.5b",
-        messages=[
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-        options={
-            "temperature": 0.1
-        }
-    )
-
-    return response["message"]["content"]
+```bash
+cd frontend
+streamlit run app.py
 ```
 
----
+### Tài khoản mặc định
 
-# ⚡ api.py (FastAPI Backend)
-
-```python
-from fastapi import FastAPI
-from pydantic import BaseModel
-
-from rag import RAG
-from llm import generate_answer
-from redis_manager import RedisManager
-
-app = FastAPI()
-
-redis_manager = RedisManager()
-
-rag = RAG(
-    index_path="data/faiss.index",
-    data_path="data/data.pkl"
-)
-
-
-class ChatRequest(BaseModel):
-    session_id: str
-    query: str
-
-
-@app.post("/chat")
-def chat(request: ChatRequest):
-
-    history = redis_manager.get_history(
-        request.session_id
-    )
-
-    docs = rag.search(request.query)
-
-    answer = generate_answer(
-        query=request.query,
-        docs=docs,
-        history=history
-    )
-
-    redis_manager.save_message(
-        request.session_id,
-        "user",
-        request.query
-    )
-
-    redis_manager.save_message(
-        request.session_id,
-        "assistant",
-        answer
-    )
-
-    return {
-        "answer": answer,
-        "sources": docs
-    }
-```
+| User | Password | Role |
+|------|----------|------|
+| `phantrongnguyen0618@gmail.com` | `123` | user |
+| `smoking` | `456` | user |
+| `admin` | `admin123` | admin |
 
 ---
 
-# 🎨 streamlit_app.py
+## License
 
-```python
-import streamlit as st
-import requests
-import uuid
-
-
-API_URL = "http://localhost:8000/chat"
-
-st.set_page_config(
-    page_title="Vietnamese AI Assistant",
-    page_icon="🧠",
-    layout="wide"
-)
-
-
-if "session_id" not in st.session_state:
-    st.session_state.session_id = str(uuid.uuid4())
-
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-
-st.title("🧠 Vietnamese Realtime RAG Chatbot")
-
-
-for msg in st.session_state.messages:
-
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
-
-
-if query := st.chat_input("Nhập câu hỏi..."):
-
-    st.session_state.messages.append({
-        "role": "user",
-        "content": query
-    })
-
-    with st.chat_message("user"):
-        st.markdown(query)
-
-    response = requests.post(
-        API_URL,
-        json={
-            "session_id": st.session_state.session_id,
-            "query": query
-        }
-    )
-
-    data = response.json()
-
-    answer = data["answer"]
-
-    with st.chat_message("assistant"):
-        st.markdown(answer)
-
-    st.session_state.messages.append({
-        "role": "assistant",
-        "content": answer
-    })
-```
-
----
-
-# 🐳 Dockerfile
-
-```dockerfile
-FROM python:3.11
-
-WORKDIR /app
-
-COPY requirements.txt .
-
-RUN pip install -r requirements.txt
-
-COPY . .
-
-CMD ["uvicorn", "backend.api:app", "--host", "0.0.0.0", "--port", "8000"]
-```
-
----
-
-# 🐳 docker-compose.yml
-
-```yaml
-version: '3.9'
-
-services:
-
-  redis:
-    image: redis:latest
-    container_name: redis_server
-    ports:
-      - "6379:6379"
-
-  backend:
-    build: .
-    container_name: rag_backend
-    ports:
-      - "8000:8000"
-    depends_on:
-      - redis
-
-  frontend:
-    build: .
-    command: streamlit run frontend/streamlit_app.py --server.port 8501 --server.address 0.0.0.0
-    ports:
-      - "8501:8501"
-    depends_on:
-      - backend
-```
-
----
-
-# 📦 requirements.txt
-
-```text
-streamlit
-fastapi
-uvicorn
-redis
-faiss-cpu
-numpy
-pandas
-torch
-transformers
-sentence-transformers
-scikit-learn
-joblib
-ollama
-requests
-python-dotenv
-```
-
----
-
-# 🔥 Những nâng cấp lớn so với phiên bản cũ
-
-| Phiên bản cũ        | Phiên bản mới           |
-| ------------------- | ----------------------- |
-| Streamlit only      | FastAPI + Streamlit     |
-| Session local       | Redis realtime session  |
-| Không cache         | Redis embedding cache   |
-| Single architecture | Production architecture |
-| Chậm khi encode     | Realtime retrieval      |
-| Không scale được    | Docker scalable         |
-| Basic chatbot       | Realtime AI System      |
-
----
-
-# 📈 Hướng phát triển tiếp theo
-
-## 1. Redis Vector Search
-
-Thay FAISS bằng:
-
-* Redis Stack
-* RediSearch
-* Vector Similarity
-
----
-
-## 2. Celery + Redis Queue
-
-Background processing:
-
-* upload PDF
-* chunking
-* embedding
-* indexing
-
----
-
-## 3. Streaming Response
-
-Cho chatbot trả lời realtime như ChatGPT.
-
----
-
-## 4. Authentication Database
-
-Hiện tại đang hardcode.
-
-Nên nâng cấp:
-
-* PostgreSQL
-* JWT Authentication
-* OAuth2
-
----
-
-# 🎯 Giá trị CV/GitHub
-
-Dự án lúc này sẽ có các keyword rất mạnh:
-
-* NLP
-* RAG
-* Redis
-* Realtime AI
-* Semantic Search
-* PhoBERT
-* Ollama
-* Vector Database
-* Docker
-* FastAPI
-* Streamlit
-* AI Backend
-* MLOps
-* Distributed Systems
-
----
-
-# 🏁 Kết luận
-
-Đây không còn là chatbot NLP cơ bản nữa.
-
-Sau khi thêm Redis + FastAPI + Docker:
-
-Hệ thống đã trở thành:
-
-✅ Realtime Vietnamese AI Assistant
-
-✅ Production-style RAG System
-
-✅ Mini AI Infrastructure Project
-
-✅ Phù hợp portfolio AI Engineer / Data Engineer / MLOps
+MIT
