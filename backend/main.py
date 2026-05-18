@@ -1,4 +1,3 @@
-# backend/main.py
 from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -9,7 +8,7 @@ import json
 from backend.config import REDIS_HOST, REDIS_PORT, REDIS_DB
 from backend.services.classifier import TextClassifier
 from backend.services.rag import RAG
-from backend.services.llm import generate_stream
+from backend.services.llm import generate_stream, expand_query, generate_follow_up, has_relevant_docs
 from backend.services.redis_client import (
     redis_client,
     add_chat_message,
@@ -17,14 +16,11 @@ from backend.services.redis_client import (
     clear_history,
 )
 
-# ---------- Khởi tạo FastAPI và các service ----------
 app = FastAPI(title="RAG Chatbot API", description="API cho chatbot RAG với Redis và streaming")
 
-# Khởi tạo các thành phần ML (chỉ một lần)
 classifier = TextClassifier()
 retriever = RAG()
 
-# ---------- Pydantic models ----------
 class ChatRequest(BaseModel):
     session_id: str
     message: str
@@ -32,8 +28,7 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     answer: str
 
-# ---------- Cấu hình admin (token tĩnh, có thể thay bằng JWT) ----------
-ADMIN_TOKEN = "admin-secret-123"   # Nên đặt trong biến môi trường
+ADMIN_TOKEN = "admin-secret-123"
 
 def verify_admin(authorization: Optional[str] = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):
@@ -43,80 +38,104 @@ def verify_admin(authorization: Optional[str] = Header(None)):
         raise HTTPException(status_code=401, detail="Invalid admin token")
     return True
 
-# ---------- API Endpoints ----------
-
 @app.get("/")
 async def root():
     return {"message": "RAG Chatbot API is running"}
 
 @app.post("/chat/stream")
 async def chat_stream(req: ChatRequest):
-    """
-    Nhận câu hỏi, trả về câu trả lời dạng streaming text/plain.
-    Lưu lịch sử hội thoại vào Redis sau khi có đủ câu trả lời.
-    """
-    # 1. Phân loại chủ đề
     label = classifier.predict(req.message)
-    
-    # 2. Truy xuất tài liệu liên quan (RAG)
-    docs = retriever.search(req.message, category=label, k=3)
-    
-    # 3. Lưu tin nhắn người dùng vào Redis
+    expanded_query = expand_query(req.message, label)
+    docs = retriever.search(expanded_query, category=label, k=3)
+
+    relevant = has_relevant_docs(docs)
+    llm_docs = docs if relevant else []
+
     add_chat_message(req.session_id, "user", req.message)
-    
-    # 4. Tạo generator stream và lưu câu trả lời
+
     async def generate():
         full_answer = ""
-        async for token in generate_stream(req.message, docs, req.session_id):
+        async for token in generate_stream(req.message, llm_docs, req.session_id, category=label):
             full_answer += token
-            yield token
-        # Lưu toàn bộ câu trả lời vào Redis
+            yield json.dumps({"type": "token", "content": token}, ensure_ascii=False) + "\n"
+
         add_chat_message(req.session_id, "assistant", full_answer)
-    
-    return StreamingResponse(generate(), media_type="text/plain")
+
+        sources = [
+            {
+                "title": d["title"],
+                "source": d["source"],
+                "url": d.get("url", ""),
+                "score": round(d["score"], 3),
+            }
+            for d in docs
+        ]
+        yield json.dumps({"type": "sources", "content": sources}, ensure_ascii=False) + "\n"
+
+        follow_ups = await generate_follow_up(req.message, full_answer, docs, req.session_id)
+        if follow_ups:
+            yield json.dumps({"type": "follow_up", "content": follow_ups}, ensure_ascii=False) + "\n"
+
+        yield json.dumps({"type": "done"}, ensure_ascii=False) + "\n"
+
+    return StreamingResponse(generate(), media_type="application/x-ndjson")
 
 @app.post("/chat/sync")
 async def chat_sync(req: ChatRequest):
-    """Phiên bản đồng bộ (không stream), trả về JSON"""
     label = classifier.predict(req.message)
-    docs = retriever.search(req.message, category=label, k=3)
+    expanded_query = expand_query(req.message, label)
+    docs = retriever.search(expanded_query, category=label, k=3)
+
+    relevant = has_relevant_docs(docs)
+    llm_docs = docs if relevant else []
+
     add_chat_message(req.session_id, "user", req.message)
-    
-    # Thu thập toàn bộ câu trả lời (không stream)
+
     full_answer = ""
-    async for token in generate_stream(req.message, docs, req.session_id):
+    async for token in generate_stream(req.message, llm_docs, req.session_id, category=label):
         full_answer += token
     add_chat_message(req.session_id, "assistant", full_answer)
-    
-    return {"answer": full_answer, "category": label, "sources": docs}
+
+    sources = [
+        {
+            "title": d["title"],
+            "source": d["source"],
+            "url": d.get("url", ""),
+            "score": round(d["score"], 3),
+        }
+        for d in docs
+    ]
+    follow_ups = await generate_follow_up(req.message, full_answer, docs, req.session_id)
+
+    return {
+        "answer": full_answer,
+        "category": label,
+        "sources": sources,
+        "follow_up": follow_ups,
+        "from_knowledge": not relevant,
+    }
 
 @app.get("/chat/history")
 async def get_history(session_id: str):
-    """Lấy lịch sử chat của một session (dành cho user)"""
     history = get_chat_history(session_id, max_messages=50)
     return {"session_id": session_id, "history": history}
 
 @app.delete("/chat/history")
 async def delete_history(session_id: str):
-    """Xóa toàn bộ lịch sử chat của session"""
     clear_history(session_id)
     return {"status": "ok", "session_id": session_id}
 
-# ---------- API dành cho Admin ----------
 @app.get("/admin/sessions", dependencies=[Depends(verify_admin)])
 async def admin_list_sessions():
-    """Liệt kê tất cả các session_id có lịch sử chat trong Redis"""
     keys = redis_client.keys("chat:*")
     sessions = [key.decode().replace("chat:", "") for key in keys]
     return {"sessions": sessions}
 
 @app.get("/admin/history/{session_id}", dependencies=[Depends(verify_admin)])
 async def admin_get_history(session_id: str):
-    """Admin xem toàn bộ lịch sử của một session (không giới hạn số tin nhắn)"""
     history = get_chat_history(session_id, max_messages=1000)
     return {"session_id": session_id, "history": history}
 
-# ---------- Health check ----------
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "redis": redis_client.ping()}
