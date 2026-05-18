@@ -1,0 +1,15 @@
+streamlit
+fastapi
+uvicorn
+redis
+faiss-cpu
+numpy
+pandas
+torch
+transformers
+sentence-transformers
+scikit-learn
+joblib
+ollama
+requests
+python-dotenv

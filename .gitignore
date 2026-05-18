@@ -1,0 +1,25 @@
+data/*
+models/*
+app/models/*
+app/data/*
+
+
+!data/
+!models/
+
+
+!data/README.md
+!models/README.md
+!data/structure_folder.png
+!app/models/README.md
+!app/data/README.md
+
+# =========================
+# PYTHON
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+
+reports/*.mp4
+*.mp4
