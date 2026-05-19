@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAG Chatbot — Operations Dashboard</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ===== SIDEBAR ===== -->
+<aside id="sidebar">
+  <div class="sb-brand">
+    <span class="sb-logo">🧠</span>
+    <span class="sb-title">RAG Bot<br><small>Ops Dashboard</small></span>
+  </div>
+  <nav class="sb-nav">
+    <button class="sb-btn active" data-tab="pipeline" onclick="switchTab('pipeline')">
+      <span class="sb-icon">▸</span> Pipeline
+    </button>
+    <button class="sb-btn" data-tab="documents" onclick="switchTab('documents')">
+      <span class="sb-icon">📄</span> Documents
+    </button>
+    <button class="sb-btn" data-tab="system" onclick="switchTab('system')">
+      <span class="sb-icon">⚙️</span> System
+    </button>
+    <button class="sb-btn" data-tab="sessions" onclick="switchTab('sessions')">
+      <span class="sb-icon">💬</span> Sessions
+    </button>
+  </nav>
+  <div class="sb-footer">
+    <div class="sb-status">
+      <span class="status-dot green"></span> All Systems
+    </div>
+    <div class="sb-version">v2.0 · RAG</div>
+  </div>
+</aside>
+
+<!-- ===== MAIN ===== -->
+<div id="mainArea">
+
+  <!-- ===== TAB: PIPELINE ===== -->
+  <section id="tab-pipeline" class="tab-content active">
+    <div class="tab-header">
+      <h2>Pipeline Flow</h2>
+      <div class="th-ctrl">
+        <button onclick="toggleAutoPlay()" id="btnPlay" class="btn-sm active">⏸ Pause</button>
+        <button onclick="resetHighlight()" class="btn-sm">⟲ Reset</button>
+        <span class="step-badge" id="stepBadge">—</span>
+      </div>
+    </div>
+    <div class="pipeline-layout">
+      <div class="flow-area">
+        <svg id="flowSvg" class="flow-svg" viewBox="0 0 1300 840" fill="none"></svg>
+      </div>
+      <!-- Task Detail Panel -->
+      <div class="task-panel" id="taskPanel">
+        <div class="tp-placeholder" id="tpPlaceholder">
+          <div class="tpp-icon">👆</div>
+          <div class="tpp-text">Click any step in the pipeline<br>to view task details</div>
+        </div>
+        <div class="tp-content" id="tpContent" style="display:none">
+          <div class="tp-head">
+            <span class="tp-step" id="tpStep">STEP 01</span>
+            <span class="tp-title" id="tpTitle"></span>
+            <span class="tp-badge" id="tpBadge"></span>
+          </div>
+          <div class="tp-body">
+            <div class="tp-desc" id="tpDesc"></div>
+            <div class="tp-metrics" id="tpMetrics"></div>
+            <div class="tp-config" id="tpConfig">
+              <div class="tp-subtitle">⚙️ Configuration</div>
+              <div class="tp-code" id="tpCode"></div>
+            </div>
+            <div class="tp-tags" id="tpTags"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== TAB: DOCUMENTS ===== -->
+  <section id="tab-documents" class="tab-content">
+    <div class="tab-header">
+      <h2>Document Corpus</h2>
+      <span class="th-sub">Vietnamese news articles</span>
+    </div>
+    <div class="grid-2col">
+      <div class="card">
+        <div class="card-title">📊 Corpus Overview</div>
+        <div class="card-body">
+          <div class="metric-row"><span>Total Articles</span><strong>6,256</strong></div>
+          <div class="metric-row"><span>Total Chunks</span><strong>36,506</strong></div>
+          <div class="metric-row"><span>Avg Chunks/Article</span><strong>5.8</strong></div>
+          <div class="metric-row"><span>Chunk Size</span><strong>512 tokens</strong></div>
+          <div class="metric-row"><span>Chunk Overlap</span><strong>128–256 tokens</strong></div>
+          <div class="metric-row"><span>Vector Dimension</span><strong>768</strong></div>
+          <div class="metric-row"><span>Index Type</span><strong>IndexFlatL2</strong></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">🏷️ Category Distribution</div>
+        <div class="card-body">
+          <div class="cat-bar"><span>thoi_su</span><div class="bar-track"><div class="bar-fill" style="width:78%"></div></div><strong>4,878</strong></div>
+          <div class="cat-bar"><span>xa_hoi</span><div class="bar-track"><div class="bar-fill" style="width:65%"></div></div><strong>4,062</strong></div>
+          <div class="cat-bar"><span>kinh_te</span><div class="bar-track"><div class="bar-fill" style="width:58%"></div></div><strong>3,624</strong></div>
+          <div class="cat-bar"><span>the_gioi</span><div class="bar-track"><div class="bar-fill" style="width:52%"></div></div><strong>3,248</strong></div>
+          <div class="cat-bar"><span>phap_luat</span><div class="bar-track"><div class="bar-fill" style="width:44%"></div></div><strong>2,748</strong></div>
+          <div class="cat-bar"><span>van_hoa</span><div class="bar-track"><div class="bar-fill" style="width:38%"></div></div><strong>2,372</strong></div>
+          <div class="cat-bar"><span>the_thao</span><div class="bar-track"><div class="bar-fill" style="width:32%"></div></div><strong>1,998</strong></div>
+          <div class="cat-bar"><span>y_te</span><div class="bar-track"><div class="bar-fill" style="width:28%"></div></div><strong>1,748</strong></div>
+          <div class="cat-bar"><span>du_lich</span><div class="bar-track"><div class="bar-fill" style="width:22%"></div></div><strong>1,374</strong></div>
+          <div class="cat-bar"><span>thi_truong</span><div class="bar-track"><div class="bar-fill" style="width:18%"></div></div><strong>1,124</strong></div>
+          <div class="cat-bar"><span>truyen_hinh</span><div class="bar-track"><div class="bar-fill" style="width:14%"></div></div><strong>874</strong></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== TAB: SYSTEM ===== -->
+  <section id="tab-system" class="tab-content">
+    <div class="tab-header">
+      <h2>System Health</h2>
+      <span class="th-sub">Real-time service status</span>
+    </div>
+    <div class="grid-3col">
+      <div class="card">
+        <div class="card-title">🗄️ Redis</div>
+        <div class="card-body">
+          <div class="srv-row"><span>Status</span><span class="tag green">● Connected</span></div>
+          <div class="srv-row"><span>Host</span><code>localhost:6379</code></div>
+          <div class="srv-row"><span>DB</span><code>db=0</code></div>
+          <div class="srv-row"><span>TTL Cache</span><code>3600s</code></div>
+          <div class="srv-row"><span>Keys (chat:*)</span><strong>12</strong></div>
+          <div class="srv-row"><span>Memory Used</span><strong>4.2 MB</strong></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">🔍 FAISS</div>
+        <div class="card-body">
+          <div class="srv-row"><span>Status</span><span class="tag green">● Indexed</span></div>
+          <div class="srv-row"><span>Index File</span><code>faiss.index</code></div>
+          <div class="srv-row"><span>Vectors</span><strong>36,506</strong></div>
+          <div class="srv-row"><span>Dimension</span><strong>768</strong></div>
+          <div class="srv-row"><span>Index Type</span><code>IndexFlatL2</code></div>
+          <div class="srv-row"><span>Search Time</span><strong>~3 ms</strong></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">🤖 Ollama</div>
+        <div class="card-body">
+          <div class="srv-row"><span>Status</span><span class="tag green">● Running</span></div>
+          <div class="srv-row"><span>Model</span><code>qwen2.5:1.5b</code></div>
+          <div class="srv-row"><span>Temperature</span><code>0.3</code></div>
+          <div class="srv-row"><span>top_p</span><code>0.9</code></div>
+          <div class="srv-row"><span>top_k</span><code>40</code></div>
+          <div class="srv-row"><span>Device</span><code>CPU</code></div>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <div class="card-title">📦 Models</div>
+      <div class="card-body">
+        <div class="srv-row"><span>Embedding</span><code>keepitreal/vietnamese-sbert</code></div>
+        <div class="srv-row"><span>Classifier</span><code>PhoBERT (vinai/phobert-base)</code></div>
+        <div class="srv-row"><span>LLM</span><code>qwen2.5:1.5b (Ollama)</code></div>
+        <div class="srv-row"><span>Device</span><code>cuda</code> if available, else <code>cpu</code></div>
+        <div class="srv-row"><span>Labels</span><code>joblib (11 classes)</code></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== TAB: SESSIONS ===== -->
+  <section id="tab-sessions" class="tab-content">
+    <div class="tab-header">
+      <h2>Chat Sessions</h2>
+      <span class="th-sub">Active and recent conversations</span>
+    </div>
+    <div class="card">
+      <div class="card-title">Active Sessions</div>
+      <div class="card-body">
+        <table class="session-table">
+          <thead><tr><th>Session ID</th><th>Messages</th><th>Last Active</th><th>Summary</th></tr></thead>
+          <tbody>
+            <tr><td><code>user_12345</code></td><td>8</td><td>2 min ago</td><td>User hỏi về giá xăng dầu</td></tr>
+            <tr><td><code>user_67890</code></td><td>15</td><td>5 min ago</td><td>Thảo luận về bóng đá</td></tr>
+            <tr><td><code>user_11111</code></td><td>3</td><td>12 min ago</td><td>Hỏi về du lịch Đà Nẵng</td></tr>
+            <tr><td><code>user_22222</code></td><td>22*</td><td>1 min ago</td><td>Summarized: kinh tế, pháp luật</td></tr>
+            <tr><td><code>user_33333</code></td><td>7</td><td>30 min ago</td><td>Hỏi về thời sự trong ngày</td></tr>
+            <tr><td><code>admin_panel</code></td><td>1</td><td>45 min ago</td><td>Admin health check</td></tr>
+          </tbody>
+        </table>
+        <div class="table-note">* Auto-summarized (session > 20 messages)</div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
