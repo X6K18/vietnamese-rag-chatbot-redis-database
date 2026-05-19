@@ -23,3 +23,7 @@ __pycache__/
 
 reports/*.mp4
 *.mp4
+
+docs/
+
+reports/
