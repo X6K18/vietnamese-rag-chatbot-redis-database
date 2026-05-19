@@ -27,6 +27,9 @@
     <button class="sb-btn" data-tab="sessions" onclick="switchTab('sessions')">
       <span class="sb-icon">💬</span> Sessions
     </button>
+    <button class="sb-btn" data-tab="models" onclick="switchTab('models')">
+      <span class="sb-icon">🧬</span> Model Insight
+    </button>
   </nav>
   <div class="sb-footer">
     <div class="sb-status">
@@ -223,6 +226,158 @@
         <div class="table-note">* Auto-summarized (session > 20 messages)</div>
       </div>
     </div>
+  </section>
+
+  <!-- ===== TAB: MODELS ===== -->
+  <section id="tab-models" class="tab-content">
+    <div class="tab-header">
+      <h2>🧬 Model Insight</h2>
+      <span class="th-sub">Kiến trúc & cách hoạt động của từng model trong pipeline</span>
+    </div>
+
+    <!-- Model selector tabs -->
+    <div class="model-tabs">
+      <button class="mt-btn active" data-model="phobert" onclick="switchModel('phobert')">🧠 PhoBERT</button>
+      <button class="mt-btn" data-model="sbert" onclick="switchModel('sbert')">🔤 Sentence-BERT</button>
+      <button class="mt-btn" data-model="llm" onclick="switchModel('llm')">🤖 Qwen2.5</button>
+    </div>
+
+    <!-- ===== PHOBERT ===== -->
+    <div id="model-phobert" class="model-panel active">
+      <div class="grid-2col">
+        <div class="card">
+          <div class="card-title">📐 Kiến trúc</div>
+          <div class="card-body">
+            <div class="arch-diagram" id="phobertArch">
+              <svg viewBox="0 0 480 340" class="arch-svg"></svg>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">⚙️ Thông số</div>
+          <div class="card-body">
+            <div class="metric-row"><span>Base Model</span><code>vinai/phobert-base</code></div>
+            <div class="metric-row"><span>Architecture</span><code>RoBERTa (BERT)</code></div>
+            <div class="metric-row"><span>Layers</span><strong>12</strong></div>
+            <div class="metric-row"><span>Hidden Size</span><strong>768</strong></div>
+            <div class="metric-row"><span>Attention Heads</span><strong>12</strong></div>
+            <div class="metric-row"><span>Parameters</span><strong>135M</strong></div>
+            <div class="metric-row"><span>Task Head</span><code>SequenceClassification</code></div>
+            <div class="metric-row"><span>Output Classes</span><strong>11</strong></div>
+            <div class="metric-row"><span>Tokenizer</span><code>BPE (byte‑pair‑encoding)</code></div>
+            <div class="metric-row"><span>Max Length</span><strong>256 tokens</strong></div>
+            <div class="metric-row"><span>Vocabulary</span><strong>64,000</strong></div>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <div class="card-title">🔬 Tokenization Demo — nhập văn bản để xem cách PhoBERT "đọc"</div>
+        <div class="card-body">
+          <div class="token-demo">
+            <input type="text" id="tokenInput" class="demo-input" value="Big Data là gì" placeholder="Nhập văn bản tiếng Việt..." spellcheck="false">
+            <button onclick="runTokenize()" class="btn-demo" style="flex-shrink:0">Tokenize</button>
+          </div>
+          <div class="token-results" id="tokenResults">
+            <div class="token-vis" id="tokenVis"></div>
+            <div class="token-meta" id="tokenMeta"></div>
+          </div>
+          <div class="token-flow" id="tokenFlow">
+            <svg viewBox="0 0 700 90" class="flow-svg"></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SBERT ===== -->
+    <div id="model-sbert" class="model-panel">
+      <div class="grid-2col">
+        <div class="card">
+          <div class="card-title">📐 Kiến trúc</div>
+          <div class="card-body">
+            <div class="arch-diagram" id="sbertArch">
+              <svg viewBox="0 0 480 340" class="arch-svg"></svg>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">⚙️ Thông số</div>
+          <div class="card-body">
+            <div class="metric-row"><span>Model</span><code>keepitreal/vietnamese-sbert</code></div>
+            <div class="metric-row"><span>Architecture</span><code>Sentence-BERT (Siamese)</code></div>
+            <div class="metric-row"><span>Base Encoder</span><code>PhoBERT</code></div>
+            <div class="metric-row"><span>Output Dim</span><strong>768</strong></div>
+            <div class="metric-row"><span>Pooling</span><code>Mean Pooling</code></div>
+            <div class="metric-row"><span>Normalization</span><code>L2‑norm</code></div>
+            <div class="metric-row"><span>Similarity</span><code>Cosine Similarity</code></div>
+            <div class="metric-row"><span>Index Type</span><code>FAISS IndexFlatL2</code></div>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <div class="card-title">🔬 So sánh ngữ nghĩa — nhập 2 câu để xem độ tương đồng vector</div>
+        <div class="card-body">
+          <div class="sim-demo">
+            <div class="sim-inputs">
+              <input type="text" id="simA" class="demo-input" value="Big Data là gì" placeholder="Câu A...">
+              <span class="sim-vs">↔</span>
+              <input type="text" id="simB" class="demo-input" value="Dữ liệu lớn là gì" placeholder="Câu B...">
+            </div>
+            <button onclick="runSimilarity()" class="btn-demo">🔍 So sánh</button>
+          </div>
+          <div class="sim-result" id="simResult" style="display:none">
+            <div class="sim-gauge" id="simGauge">
+              <svg viewBox="0 0 200 120" class="gauge-svg"></svg>
+            </div>
+            <div class="sim-detail" id="simDetail"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== LLM ===== -->
+    <div id="model-llm" class="model-panel">
+      <div class="grid-2col">
+        <div class="card">
+          <div class="card-title">📐 Kiến trúc</div>
+          <div class="card-body">
+            <div class="arch-diagram" id="llmArch">
+              <svg viewBox="0 0 480 340" class="arch-svg"></svg>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">⚙️ Thông số</div>
+          <div class="card-body">
+            <div class="metric-row"><span>Model</span><code>qwen2.5:1.5b</code></div>
+            <div class="metric-row"><span>Architecture</span><code>Decoder‑only Transformer</code></div>
+            <div class="metric-row"><span>Parameters</span><strong>1.54B</strong></div>
+            <div class="metric-row"><span>Layers</span><strong>28</strong></div>
+            <div class="metric-row"><span>Hidden Size</span><strong>1536</strong></div>
+            <div class="metric-row"><span>Attention Heads</span><strong>12</strong></div>
+            <div class="metric-row"><span>Context Length</span><strong>32,768 tokens</strong></div>
+            <div class="metric-row"><span>Tokenizer</span><code>Qwen2Tokenizer</code></div>
+            <div class="metric-row"><span>Generation</span><code>Streaming (Ollama)</code></div>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <div class="card-title">🔬 Cấu trúc Prompt — xem cách prompt được xây dựng</div>
+        <div class="card-body">
+          <div class="prompt-demo">
+            <input type="text" id="promptQuery" class="demo-input" value="Big Data là gì" placeholder="Nhập câu hỏi...">
+            <select id="promptMode" class="demo-select">
+              <option value="rag">RAG (có context)</option>
+              <option value="fallback">Fallback (không context)</option>
+            </select>
+            <button onclick="showPrompt()" class="btn-demo">📋 Xem Prompt</button>
+          </div>
+          <div class="prompt-output" id="promptOutput" style="display:none">
+            <pre class="prompt-pre" id="promptPre"></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </section>
 
 </div>

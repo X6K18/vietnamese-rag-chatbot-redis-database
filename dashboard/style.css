@@ -544,6 +544,191 @@ strong{color:#e0e8f5}
 .node-rect:hover{filter:url(#glow)!important;stroke-width:2.5!important}
 
 /* ============================================================
+   MODEL TAB — Model Insight
+   ============================================================ */
+.model-tabs{
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap
+}
+.mt-btn{
+  background:#0d172a;
+  border:1px solid #1f2f50;
+  border-radius:8px;
+  color:#7988aa;
+  padding:8px 20px;
+  cursor:pointer;
+  font-size:13px;
+  font-weight:600;
+  font-family:inherit;
+  transition:.15s
+}
+.mt-btn:hover{background:#14233e;color:#b0c4e8}
+.mt-btn.active{
+  background:#1a2d4a;
+  border-color:#3b82f6;
+  color:#60a5fa;
+  box-shadow:0 0 12px #3b82f622
+}
+.model-panel{display:none;flex-direction:column;gap:12px}
+.model-panel.active{display:flex}
+.arch-diagram{
+  background:#080c18;
+  border-radius:6px;
+  padding:8px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-height:200px
+}
+.arch-svg{width:100%;height:auto;display:block}
+.token-demo{
+  display:flex;
+  gap:8px;
+  margin-bottom:12px
+}
+.token-results{
+  display:none;
+  flex-direction:column;
+  gap:10px
+}
+.token-results.visible{display:flex}
+.token-vis{
+  display:flex;
+  flex-wrap:wrap;
+  gap:4px;
+  padding:10px;
+  background:#080c18;
+  border-radius:6px;
+  border:1px solid #151f36;
+  min-height:40px
+}
+.token-chip{
+  display:inline-flex;
+  flex-direction:column;
+  align-items:center;
+  background:#111b30;
+  border:1px solid #1f3560;
+  border-radius:4px;
+  padding:2px 6px;
+  font-size:11px;
+  font-family:'JetBrains Mono','Fira Code',monospace;
+  transition:.2s
+}
+.token-chip .tok-id{font-size:8px;color:#556688;margin-top:1px}
+.token-chip .tok-txt{color:#60a5fa}
+.token-chip.special .tok-txt{color:#f472b6}
+.token-chip.sep .tok-txt{color:#34d399}
+.token-chip.cls .tok-txt{color:#fbbf24}
+.token-meta{
+  display:flex;
+  gap:12px;
+  font-size:11px;
+  color:#556688
+}
+.token-flow{
+  background:#080c18;
+  border-radius:6px;
+  border:1px solid #151f36;
+  padding:8px;
+  margin-top:6px
+}
+
+/* Similarity Demo */
+.sim-demo{
+  display:flex;
+  flex-direction:column;
+  gap:10px
+}
+.sim-inputs{
+  display:flex;
+  align-items:center;
+  gap:8px
+}
+.sim-vs{
+  font-size:18px;
+  color:#3b82f6;
+  font-weight:700;
+  flex-shrink:0
+}
+.sim-result{
+  display:none;
+  margin-top:10px;
+  gap:16px;
+  align-items:center
+}
+.sim-result.visible{display:flex}
+.sim-gauge{flex-shrink:0}
+.gauge-svg{width:180px;height:auto;display:block}
+.sim-detail{
+  flex:1;
+  background:#080c18;
+  border-radius:6px;
+  border:1px solid #151f36;
+  padding:12px;
+  font-size:12px;
+  line-height:1.8;
+  color:#8899bb
+}
+.sim-detail strong{color:#e0e8f5}
+.sim-detail .score-val{
+  font-size:28px;
+  font-weight:700;
+  color:#60a5fa
+}
+
+/* Prompt Demo */
+.prompt-demo{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap
+}
+.demo-select{
+  background:#080c18;
+  border:1px solid #1f2f50;
+  border-radius:6px;
+  color:#e0e8f5;
+  font-size:12px;
+  padding:6px 10px;
+  font-family:inherit;
+  outline:none;
+  cursor:pointer
+}
+.demo-select:focus{border-color:#3b82f6}
+.prompt-output{
+  display:none;
+  margin-top:10px
+}
+.prompt-output.visible{display:block}
+.prompt-pre{
+  background:#080c18;
+  border:1px solid #151f36;
+  border-radius:6px;
+  padding:14px 16px;
+  font-size:11px;
+  font-family:'JetBrains Mono','Fira Code',monospace;
+  color:#7aa5e6;
+  line-height:1.7;
+  white-space:pre-wrap;
+  max-height:400px;
+  overflow-y:auto
+}
+.prompt-pre .section-label{
+  color:#f472b6;
+  font-weight:700
+}
+.prompt-pre .section-content{
+  color:#34d399
+}
+.prompt-pre .query-text{
+  color:#fbbf24
+}
+.prompt-pre .meta-text{
+  color:#556688;
+  font-style:italic
+}
+
+/* ============================================================
    RESPONSIVE
    ============================================================ */
 @media(max-width:960px){

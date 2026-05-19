@@ -914,8 +914,369 @@ function syntaxHighlight(str){
     .replace(/(✅|❌|DECISION|PREDICTED)/g, '<span style="color:#34d399;font-weight:700">$1</span>');
 }
 
-// Allow Enter key to trigger demo
+// ============================================================
+//  MODEL TAB — Architecture diagrams & interactive demos
+// ============================================================
+const MODEL_COLORS = {phobert:'#8b5cf6',sbert:'#3b82f6',llm:'#10b981'};
+
+function switchModel(name){
+  document.querySelectorAll('.mt-btn').forEach(b=>b.classList.toggle('active',b.dataset.model===name));
+  document.querySelectorAll('.model-panel').forEach(p=>p.classList.toggle('active',p.id==='model-'+name));
+}
+
+// ── SVG helpers ──
+function mtag(name,attrs,text){
+  const e=document.createElementNS('http://www.w3.org/2000/svg',name);
+  if(attrs)Object.entries(attrs).forEach(([k,v])=>v!==undefined&&e.setAttribute(k,v));
+  if(text!==undefined)e.textContent=text;
+  return e;
+}
+function mrect(svg,x,y,w,h,r,fill,stroke,sw){
+  svg.append(mtag('rect',{x,y,width:w,height:h,rx:r||4,fill:fill||'none',stroke:stroke||'none','stroke-width':sw||1}));
+}
+function mtext(svg,x,y,text,size,fill,weight,anchor){
+  svg.append(mtag('text',{x,y,fill:fill||'#8899bb','font-size':size||10,'font-weight':weight||400,'text-anchor':anchor||'middle','dominant-baseline':'central'},text));
+}
+function marrow(svg,x1,y1,x2,y2,color,label){
+  svg.append(mtag('line',{x1,y1,x2,y2,stroke:color||'#3b82f6','stroke-width':1.5,'stroke-dasharray':'4 3','marker-end':'url(#ma)'}));
+  if(label) svg.append(mtag('text',{x:(x1+x2)/2,y:(y1+y2)/2-6,fill:'#556688','font-size':8,'text-anchor':'middle'},label));
+}
+
+// ── Build all architecture SVGs ──
+function buildModelSVGs(){
+  // Marker def
+  const defs=mtag('defs');
+  defs.append(mtag('marker',{id:'ma',viewBox:'0 0 10 10',refX:9,refY:5,markerWidth:5,markerHeight:5,orient:'auto'}),
+    mtag('path',{d:'M0,0 L10,5 L0,10 Z',fill:'#3b82f6'}));
+
+  // ---- PhoBERT Architecture ----
+  (()=>{
+    const s=document.querySelector('#phobertArch svg'); if(!s)return;
+    const cx=240, colors=['#3b82f6','#60a5fa','#8b5cf6','#a78bfa','#f472b6'];
+    s.append(defs.cloneNode(true));
+    // Input
+    mrect(s,cx-100,10,200,28,6,'#0d172a','#3b82f6'); mtext(s,cx,24,'Input: "Big Data là gì"',10,'#e0e8f5',600);
+    marrow(s,cx,38,cx,55,'#3b82f6','Tokenize');
+    // Token embeddings
+    const tokens=['Big','Data','là','gì','[SEP]'];
+    tokens.forEach((t,i)=>{
+      const x=cx-120+i*60;
+      mrect(s,x,58,48,28,4,'#111b30','#3b82f6',.8);
+      mtext(s,x+24,72,t,9,'#60a5fa',600);
+    });
+    marrow(s,cx,86,cx,100,'#8b5cf6','12× Transformer');
+    // 12 layers stack
+    for(let i=0;i<4;i++){
+      const y=103+i*12;
+      mrect(s,cx-80,y,160,10,3,colors[i],colors[i],1.5);
+      if(i===0) mtext(s,cx-85,y+5,'Encoder Layer 1',6,'#8899bb',400,'end');
+      if(i===3) mtext(s,cx+85,y+5,'Encoder Layer 12',6,'#8899bb',400,'start');
+    }
+    // Pooler
+    marrow(s,cx,151,cx,165,'#f472b6','[CLS] Pool');
+    mrect(s,cx-60,168,120,24,6,'#1a0d28','#f472b6'); mtext(s,cx,180,'Pooled Output (768d)',9,'#f472b6',600);
+    // Classifier head
+    marrow(s,cx,192,cx,208,'#f472b6','Classifier');
+    mrect(s,cx-70,210,140,28,6,'#2d0d28','#ec4899'); mtext(s,cx,224,'Linear(768 → 11)',9,'#fbbf24',600);
+    // Output
+    marrow(s,cx,238,cx,254,'#f472b6','Softmax');
+    mrect(s,cx-90,256,180,32,8,'#0d2818','#10b981');
+    mtext(s,cx,264,'11 Categories',9,'#34d399',600);
+    mtext(s,cx,278,'thoi_su · xa_hoi · kinh_te · the_gioi · ...',7,'#556688',400);
+    // Labels
+    mtext(s,30,24,'INPUT',8,'#3b82f6',700,'start');
+    mtext(s,30,165,'ENCODER',8,'#8b5cf6',700,'start');
+    mtext(s,30,224,'HEAD',8,'#f472b6',700,'start');
+    mtext(s,30,272,'OUTPUT',8,'#10b981',700,'start');
+    // Decorative vertical line
+    s.append(mtag('line',{x1:45,y1:14,x2:45,y2:290,stroke:'#151f36','stroke-width':1,'stroke-dasharray':'3 3'}));
+  })();
+
+  // ---- SBERT Architecture ----
+  (()=>{
+    const s=document.querySelector('#sbertArch svg'); if(!s)return;
+    s.append(defs.cloneNode(true));
+    // Twin encoders
+    const cx=120, cx2=360, mid=240;
+    // Sentence A
+    mrect(s,cx-70,10,140,28,6,'#0d172a','#3b82f6'); mtext(s,cx,24,'Câu A',10,'#e0e8f5',600);
+    mrect(s,cx-70,44,140,28,6,'#0d172a','#60a5fa'); mtext(s,cx,58,'PhoBERT Encoder',9,'#60a5fa',600);
+    mrect(s,cx-50,78,100,22,4,'#111b30','#3b82f6'); mtext(s,cx,89,'Mean Pooling',8,'#3b82f6');
+    mrect(s,cx-50,106,100,22,4,'#111b30','#3b82f6'); mtext(s,cx,117,'L2‑Norm → 768d',8,'#3b82f6');
+    // Sentence B
+    mrect(s,cx2-70,10,140,28,6,'#0d172a','#8b5cf6'); mtext(s,cx2,24,'Câu B',10,'#e0e8f5',600);
+    mrect(s,cx2-70,44,140,28,6,'#0d172a','#a78bfa'); mtext(s,cx2,58,'PhoBERT Encoder',9,'#a78bfa',600);
+    mrect(s,cx2-50,78,100,22,4,'#111b30','#8b5cf6'); mtext(s,cx2,89,'Mean Pooling',8,'#8b5cf6');
+    mrect(s,cx2-50,106,100,22,4,'#111b30','#8b5cf6'); mtext(s,cx2,117,'L2‑Norm → 768d',8,'#8b5cf6');
+    // Similarity
+    marrow(s,cx,128,mid,160,'#3b82f6'); marrow(s,cx2,128,mid,160,'#8b5cf6');
+    mrect(s,mid-60,162,120,28,6,'#0d2818','#10b981'); mtext(s,mid,176,'Cosine Similarity',9,'#34d399',600);
+    // Result
+    marrow(s,mid,190,mid,210,'#10b981');
+    mrect(s,mid-80,212,160,32,8,'#080c18','#fbbf24');
+    mtext(s,mid,228,'Score ∈ [−1, 1]',9,'#fbbf24',600);
+    // Labels
+    mtext(s,mid,252,'→ search = FAISS IndexFlatL2 (L2 distance)',8,'#556688',400);
+    // Decorative
+    mtext(s,10,308,'"Dữ liệu lớn là gì" ↔ "Big Data là gì" → 0.92',8,'#3a4a6a',400,'start');
+  })();
+
+  // ---- LLM Architecture ----
+  (()=>{
+    const s=document.querySelector('#llmArch svg'); if(!s)return;
+    s.append(defs.cloneNode(true));
+    const cx=240;
+    // Input
+    mrect(s,cx-120,10,240,28,6,'#0d172a','#10b981'); mtext(s,cx,24,'Input Tokens: [Prompt] [Context] [Query]',9,'#e0e8f5',600);
+    // Embedding
+    marrow(s,cx,38,cx,52,'#10b981');
+    mrect(s,cx-90,54,180,22,4,'#111b30','#10b981'); mtext(s,cx,65,'Token Embedding + Positional Encoding',8,'#34d399');
+    // 28 Decoder layers
+    marrow(s,cx,76,cx,90,'#10b981');
+    for(let i=0;i<6;i++){
+      const y=92+i*14;
+      const grad=i%2===0?'#0d2838':'#0d172a';
+      mrect(s,cx-85,y,170,12,2,grad,i<3?'#3b82f6':'#8b5cf6',.8);
+    }
+    mtext(s,cx-90,100,'Decoder Layer 1',6,'#556688',400,'start');
+    mtext(s,cx+90,156,'Decoder Layer 28',6,'#556688',400,'start');
+    mtext(s,cx,82,'28× Decoder Layers',7,'#3a4a6a',400);
+    // LM Head
+    marrow(s,cx,158,cx,172,'#f472b6');
+    mrect(s,cx-80,174,160,22,4,'#1a0d28','#f472b6'); mtext(s,cx,185,'LM Head (Linear + Softmax)',8,'#f472b6');
+    // Output
+    marrow(s,cx,196,cx,210,'#f472b6');
+    mrect(s,cx-100,212,200,28,6,'#0d2818','#fbbf24'); mtext(s,cx,226,'Next-Token Prediction (Streaming)',9,'#fbbf24',600);
+    // Labels
+    const labels=['Auto‑regressive','1.54B params','Context: 32K','Ollama'];
+    const lxs=[60,140,340,420];
+    labels.forEach((l,i)=>mtext(s,lxs[i],318,l,7,'#3a4a6a',400,'start'));
+    // Tokens at bottom
+    ['Big',' Data',' (','dữ',' liệu',' lớn',')',' là',' ...'].forEach((t,i)=>{
+      mrect(s,cx-130+i*35,286,30,18,3,'#0d172a','#10b981',.5);
+      mtext(s,cx-115+i*35,295,t,7,'#34d399',600);
+    });
+    mtext(s,cx,272,'Generated tokens (streaming output →)',8,'#556688',400);
+  })();
+}
+
+// ── Tokenization Demo ──
+const SAMPLE_TOKENS = {
+  'Big Data là gì':[
+    {id:'5682',txt:'Big',cls:''},{id:'3251',txt:'Data',cls:''},
+    {id:'875',txt:'là',cls:''},{id:'312',txt:'gì',cls:''},
+    {id:'2',txt:'[SEP]',cls:'sep'}
+  ],
+  'Thời sự hôm nay':[
+    {id:'12045',txt:'Thời',cls:''},{id:'893',txt:'sự',cls:''},
+    {id:'4512',txt:'hôm',cls:''},{id:'672',txt:'nay',cls:''},
+    {id:'2',txt:'[SEP]',cls:'sep'}
+  ],
+  'Giá xăng dầu hôm nay':[
+    {id:'8921',txt:'Giá',cls:''},{id:'3456',txt:'xăng',cls:''},
+    {id:'2104',txt:'dầu',cls:''},{id:'4512',txt:'hôm',cls:''},
+    {id:'672',txt:'nay',cls:''},{id:'2',txt:'[SEP]',cls:'sep'}
+  ]
+};
+
+function runTokenize(){
+  const input=document.getElementById('tokenInput');
+  const text=input.value.trim();
+  if(!text)return;
+  const container=document.getElementById('tokenResults');
+  const vis=document.getElementById('tokenVis');
+  const meta=document.getElementById('tokenMeta');
+  const flow=document.querySelector('#tokenFlow svg');
+
+  container.classList.add('visible');
+  vis.innerHTML='';
+
+  // Get or generate tokens
+  let tokens=SAMPLE_TOKENS[text];
+  if(!tokens){
+    const words=text.split(/\s+/);
+    tokens=words.map((w,i)=>({id:String(1000+i),txt:w,cls:''}));
+    tokens.push({id:'2',txt:'[SEP]',cls:'sep'});
+  }
+  // Add [CLS] at start
+  tokens=[{id:'0',txt:'[CLS]',cls:'cls'},...tokens];
+
+  tokens.forEach(t=>{
+    const chip=document.createElement('div');
+    chip.className='token-chip'+(t.cls?' '+t.cls:'');
+    chip.innerHTML=`<span class="tok-txt">${t.txt}</span><span class="tok-id">#${t.id}</span>`;
+    chip.title=`Token ID: ${t.id}`;
+    vis.appendChild(chip);
+  });
+
+  const chars=text.length;
+  const tokCount=tokens.length;
+  const compression=(chars/tokCount).toFixed(1);
+  meta.innerHTML=`
+    <span>📊 <strong>${tokCount}</strong> tokens (gồm [CLS] + [SEP])</span>
+    <span>📝 <strong>${chars}</strong> ký tự</span>
+    <span>⚡ Tỉ lệ nén: ~<strong>${compression}</strong> ký/token</span>
+    <span>🔢 BPE vocabulary: <strong>64,000</strong></span>
+  `;
+
+  // Flow visualization
+  const svg=flow;
+  const fw=parseInt(svg.getAttribute('viewBox').split(' ')[2])||700;
+  const fh=80;
+  svg.innerHTML='';
+  const defs=mtag('defs');
+  defs.append(mtag('marker',{id:'mf',viewBox:'0 0 10 10',refX:9,refY:5,markerWidth:5,markerHeight:5,orient:'auto'}),
+    mtag('path',{d:'M0,0 L10,5 L0,10 Z',fill:'#3b82f6'}));
+  svg.append(defs);
+
+  const steps=[
+    {x:30,l:'Văn bản thô'},{x:140,l:'BPE Tokenizer'},{x:260,l:'Token IDs'},{x:380,l:'Embedding'},{x:500,l:'Transformer'}];
+  steps.forEach((s,i)=>{
+    mrect(svg,s.x-20,20,60,28,4,['#0d172a','#111b30','#0d172a','#0d2818','#1a0d28'][i],
+      ['#3b82f6','#8b5cf6','#f472b6','#10b981','#fbbf24'][i],1);
+    mtext(svg,s.x+10,34,s.l,7,'#e0e8f5',600);
+    if(i<steps.length-1){
+      svg.append(mtag('line',{x1:s.x+40,y1:34,x2:steps[i+1].x-20,y2:34,
+        stroke:'#3b82f6','stroke-width':1,'stroke-dasharray':'3 3','marker-end':'url(#mf)'}));
+    }
+  });
+  const bottom=['Văn bản gốc','→ BPE tokenize','→ Tra vocab','→ Lookup table','→ Self‑attention'][0];
+  mtext(svg,fw/2,75,'PhoBERT: Văn bản → Token IDs → Embeddings → Contextual Representations',8,'#556688',400);
+}
+
+// ── Similarity Demo ──
+function runSimilarity(){
+  const a=document.getElementById('simA').value.trim();
+  const b=document.getElementById('simB').value.trim();
+  if(!a||!b)return;
+  const container=document.getElementById('simResult');
+  container.classList.add('visible');
+  const svg=document.querySelector('#simGauge svg');
+  svg.innerHTML='';
+
+  // Compute mock cosine similarity based on word overlap + length
+  const wa=a.toLowerCase().split(/\s+/), wb=b.toLowerCase().split(/\s+/);
+  const setA=new Set(wa), setB=new Set(wb);
+  const intersection=new Set([...setA].filter(x=>setB.has(x)));
+  const union=new Set([...setA,...setB]);
+  const jaccard=union.size>0?intersection.size/union.size:0;
+  const lenSim=1-Math.abs(wa.length-wb.length)/Math.max(wa.length,wb.length,1);
+  const score=Math.min(1,Math.max(0,(jaccard*0.7+lenSim*0.3)));
+
+  const angle=45+score*180;
+  const rad=(angle-90)*Math.PI/180;
+  const r=75;
+  const xc=100,yc=95;
+  const ex=xc+r*Math.cos(rad), ey=yc+r*Math.sin(rad);
+
+  // Arc background
+  const arc=mtag('path',{d:'M25,95 A75,75 0 0,1 175,95',fill:'none',stroke:'#151f36','stroke-width':12});
+  svg.append(arc);
+  // Arc fill
+  const largeArc=score>0.5?1:0;
+  const endX=xc+r*Math.cos((225)*Math.PI/180);
+  const fillArc=mtag('path',{
+    d:`M${xc+r*Math.cos((45)*Math.PI/180)},${yc+r*Math.sin((45)*Math.PI/180)} A75,75 0 ${largeArc},1 ${xc+r*Math.cos((45+score*180)*Math.PI/180)},${yc+r*Math.sin((45+score*180)*Math.PI/180)}`,
+    fill:'none',stroke:score>0.6?'#10b981':score>0.3?'#f59e0b':'#f87171','stroke-width':12,'stroke-linecap':'round'});
+  svg.append(fillArc);
+  // Needle
+  svg.append(mtag('line',{x1:xc,y1:yc,x2:ex,y2:ey,stroke:'#e0e8f5','stroke-width':2}));
+  svg.append(mtag('circle',{cx:xc,cy:yc,r:5,fill:'#3b82f6'}));
+  // Labels
+  const labels=['0','0.25','0.5','0.75','1.0'];
+  const angles=[45,67.5,90,112.5,135];
+  labels.forEach((l,i)=>{
+    const a=angles[i]*Math.PI/180;
+    const lx=xc+(r+16)*Math.cos(a), ly=yc+(r+16)*Math.sin(a);
+    mtext(svg,lx,ly,l,7,'#556688',600);
+  });
+  mtext(svg,xc,45,'Cosine Similarity',8,'#8899bb',600);
+  // Score
+  mtext(svg,xc,95,score.toFixed(3),18,'#e0e8f5',700);
+
+  // Detail
+  const detail=document.getElementById('simDetail');
+  const overlapWords=[...intersection].join(', ')||'(không có)';
+  detail.innerHTML=`
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+      <span class="score-val">${(score*100).toFixed(1)}%</span>
+      <span style="font-size:11px;color:#556688">độ tương đồng ngữ nghĩa</span>
+    </div>
+    <div class="metric-row"><span>Số từ chung</span><strong>${intersection.size}</strong></div>
+    <div class="metric-row"><span>Từ trùng</span><span style="color:#34d399">${overlapWords}</span></div>
+    <div class="metric-row"><span>Jaccard</span><strong>${(jaccard*100).toFixed(1)}%</strong></div>
+    <div class="metric-row"><span>Độ dài (A:${wa.length}, B:${wb.length})</span><strong>${(lenSim*100).toFixed(0)}%</strong></div>
+    <div style="margin-top:8px;font-size:10px;color:#3a4a6a">
+      ${score>0.6?'✅ Ngữ nghĩa gần nhau → cùng cluster trong FAISS':
+        score>0.3?'⚠️ Tương đồng một phần → có thể matching':
+        '❌ Khác ngữ nghĩa → vector cách xa nhau'}
+    </div>
+  `;
+}
+
+// ── Prompt Builder Demo ──
+function showPrompt(){
+  const q=document.getElementById('promptQuery').value.trim()||'Big Data là gì';
+  const mode=document.getElementById('promptMode').value;
+  const container=document.getElementById('promptOutput');
+  container.classList.add('visible');
+  const pre=document.getElementById('promptPre');
+
+  const ragPrompt = `<span class="section-label">## HỆ THỐNG</span>
+Bạn là trợ lý AI tiếng Việt, trả lời dựa trên tài liệu tham khảo.
+
+<span class="section-label">## QUY TẮC</span>
+1. CHỈ dùng thông tin trong TÀI LIỆU THAM KHẢO để trả lời.
+2. TRÍCH DẪN nguồn với [1], [2] ngay trong câu trả lời.
+3. Nếu tài liệu không đủ, nói rõ "Tài liệu không đề cập đến...".
+
+<span class="section-label">## TÀI LIỆU THAM KHẢO</span>
+<span class="section-content">[1] Big Data là thuật ngữ mô tả tập dữ liệu lớn và phức tạp...
+(Nguồn: vnexpress - Big Data là xu hướng công nghệ mới)
+
+[2] Big Data được định nghĩa bởi 3V: Volume, Velocity, Variety...
+(Nguồn: vietnamnet - Tìm hiểu về dữ liệu lớn)
+
+[3] Big Data đang được ứng dụng rộng rãi trong kinh doanh...
+(Nguồn: tuoitre - Big Data: Cơ hội và thách thức)</span>
+
+<span class="section-label">## CÂU HỎI</span>
+<span class="query-text">${q}</span>
+
+<span class="section-label">## TRẢ LỜI (trích dẫn [1], [2] và kèm gợi ý):</span>`;
+
+  const fallbackPrompt = `<span class="section-label">## HỆ THỐNG</span>
+Bạn là trợ lý AI tiếng Việt thông minh, có kiến thức sâu rộng.
+
+<span class="section-label">## QUY TẮC</span>
+1. KHÔNG có tài liệu tham khảo cho câu hỏi này.
+2. Hãy dùng KIẾN THỨC của bạn để trả lời.
+3. Nói rõ "Tôi không tìm thấy tài liệu cụ thể..." trước khi trả lời.
+
+<span class="meta-text">(Không có tài liệu tham khảo — score &lt; 0.3)</span>
+
+<span class="section-label">## CÂU HỎI</span>
+<span class="query-text">${q}</span>
+
+<span class="section-label">## TRẢ LỜI (dùng kiến thức riêng):</span>`;
+
+  pre.innerHTML=mode==='rag'?ragPrompt:fallbackPrompt;
+}
+
+// ── Init model tab ──
 document.addEventListener('DOMContentLoaded', ()=>{
-  const inp = document.getElementById('demoInput');
-  if (inp) inp.addEventListener('keydown', e => { if (e.key === 'Enter') runDemo(); });
+  buildModelSVGs();
+
+  // Enter key handlers
+  const tokenInp=document.getElementById('tokenInput');
+  if(tokenInp) tokenInp.addEventListener('keydown',e=>{if(e.key==='Enter')runTokenize();});
+  const simA=document.getElementById('simA'),simB=document.getElementById('simB');
+  if(simA) simA.addEventListener('keydown',e=>{if(e.key==='Enter')runSimilarity();});
+  if(simB) simB.addEventListener('keydown',e=>{if(e.key==='Enter')runSimilarity();});
+  const pq=document.getElementById('promptQuery');
+  if(pq) pq.addEventListener('keydown',e=>{if(e.key==='Enter')showPrompt();});
+
+  // Also keep pipeline demo Enter handler
+  const demoInp=document.getElementById('demoInput');
+  if(demoInp) demoInp.addEventListener('keydown',e=>{if(e.key==='Enter')runDemo();});
 });
