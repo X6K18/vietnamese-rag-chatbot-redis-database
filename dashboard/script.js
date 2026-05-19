@@ -532,3 +532,390 @@ spawnParticles();
 animateParticles(0);
 playTimer=setInterval(advanceStep,2800);
 setTimeout(advanceStep,500);
+
+// ============================================================
+//  DEMO SIMULATION — Interactive Pipeline Walkthrough
+// ============================================================
+const DEMO_PIPELINE = [
+  {key:'1', title:'User Input', badge:'Frontend', color:'#3b82f6',
+   run:(q)=>`💬 INPUT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  "User": "${q}"
+
+  → Method:      POST
+  → Endpoint:    /chat/stream
+  → Content-Type: application/json
+
+  {
+    "session_id": "demo_${Date.now()}",
+    "message": "${q}"
+  }`},
+
+  {key:'2', title:'PhoBERT Classification', badge:'NLP Model', color:'#8b5cf6',
+   run:(q)=>{
+     const probs = {
+       thoi_su:0.4231, xa_hoi:0.1852, kinh_te:0.0963,
+       the_gioi:0.0758, giao_duc:0.0641, khoa_hoc:0.0512,
+       phap_luat:0.0387, van_hoa:0.0285, the_thao:0.0169,
+       y_te:0.0122, du_lich:0.0080
+     };
+     const pred = 'thoi_su';
+     const prob = probs.thoi_su;
+     return `🧠 PHOBERT CLASSIFICATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Input:  "${q}"
+  Model:  vinai/phobert-base (fine-tuned)
+  Device: cpu  |  Max Tokens: 256
+
+  ┌─────────────────────────────────────────────┐
+  │  Class              Logits     Softmax      │
+  ├─────────────────────────────────────────────┤
+  │  thoi_su      →  2.8451     ${(probs.thoi_su*100).toFixed(2)}%  ← PREDICTED│
+  │  xa_hoi       →  0.8934     ${(probs.xa_hoi*100).toFixed(2)}%        │
+  │  kinh_te      → -0.2412     ${(probs.kinh_te*100).toFixed(2)}%        │
+  │  the_gioi     → -0.5731     ${(probs.the_gioi*100).toFixed(2)}%        │
+  │  giao_duc     → -0.8124     ${(probs.giao_duc*100).toFixed(2)}%        │
+  │  khoa_hoc     → -1.1352     ${(probs.khoa_hoc*100).toFixed(2)}%        │
+  │  phap_luat    → -1.4893     ${(probs.phap_luat*100).toFixed(2)}%        │
+  │  van_hoa      → -1.8932     ${(probs.van_hoa*100).toFixed(2)}%        │
+  │  the_thao     → -2.3415     ${(probs.the_thao*100).toFixed(2)}%        │
+  │  y_te         → -2.7341     ${(probs.y_te*100).toFixed(2)}%        │
+  │  du_lich      → -3.1450     ${(probs.du_lich*100).toFixed(2)}%        │
+  └─────────────────────────────────────────────┘
+
+  ✅ Predicted category: "${pred}" (confidence: ${(prob*100).toFixed(1)}%)
+
+  → Input tokens:  4
+  → Inference:     ~51ms`}},{key:'3', title:'Query Expansion', badge:'Preprocessing', color:'#3b82f6',
+   run:(q)=>{
+     const expanded = `${q} (thuộc chủ đề thoi_su)`;
+     return `🔍 QUERY EXPANSION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Purpose:  Inject predicted category into query
+            for better vector search accuracy
+
+  Before (original):
+    ${q}
+
+  After (expanded):
+    ${expanded}
+
+  → Method:       String concatenation
+  → Recall Gain:  +15%
+  → Latency:      ~1ms`}},
+  {key:'4', title:'FAISS Vector Search', badge:'Vector DB', color:'#3b82f6',
+   run:(q)=>{
+     const expanded = `${q} (thuộc chủ đề thoi_su)`;
+     const results = [
+       {idx:1204,dist:0.412,title:'Big Data là xu hướng công nghệ mới',source:'vnexpress',score:0.708},
+       {idx:3891,dist:0.523,title:'Tìm hiểu về dữ liệu lớn (Big Data)',source:'vietnamnet',score:0.657},
+       {idx:2105,dist:0.634,title:'Big Data: Cơ hội và thách thức',source:'tuoitre',score:0.612},
+       {idx:5672,dist:0.712,title:'Ứng dụng Big Data trong kinh doanh',source:'cafef',score:0.584},
+       {idx:782,dist:0.723,title:'Khái niệm Big Data và 3V',source:'vnexpress',score:0.580},
+       {idx:4413,dist:0.741,title:'Big Data cách mạng hóa ngành tài chính',source:'ndh',score:0.574},
+       {idx:3318,dist:0.767,title:'Phân tích dữ liệu lớn với AI',source:'vietnamnet',score:0.566},
+       {idx:1550,dist:0.783,title:'Dữ liệu lớn trong y tế',source:'suckhoedoisong',score:0.561},
+       {idx:6011,dist:0.799,title:'Big Data cho doanh nghiệp nhỏ',source:'cafebiz',score:0.556},
+       {idx:2745,dist:0.814,title:'Học máy và xử lý dữ liệu lớn',source:'vnexpress',score:0.551},
+       {idx:4912,dist:0.832,title:'Big Data trong thương mại điện tử',source:'tuoitre',score:0.546},
+       {idx:1843,dist:0.847,title:'Tương lai của Big Data tại Việt Nam',source:'vietnamnet',score:0.541},
+       {idx:3625,dist:0.865,title:'Lưu trữ và quản lý dữ liệu lớn',source:'ictnews',score:0.536},
+       {idx:721,dist:0.879,title:'Big Data và trí tuệ nhân tạo',source:'vnexpress',score:0.532},
+       {idx:5216,dist:0.891,title:'Xu hướng Big Data 2025',source:'cafef',score:0.529}
+     ];
+     let out = `📊 FAISS VECTOR SEARCH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Query:  "${expanded}"
+  Model:  keepitreal/vietnamese-sbert → 768-dim
+  Index:  IndexFlatL2 (36,506 vectors)
+  Search: k×5 = 15 nearest neighbors
+  Time:   ~3ms
+
+  ┌──────┬──────────────────────────────────────┬──────────┬───────┐
+  │  #   │  Title                               │ Distance │ Score │
+  ├──────┼──────────────────────────────────────┼──────────┼───────┤`;
+     results.forEach((r,i)=>{
+       out += `\n  │  ${String(i+1).padStart(2,' ')}  │  ${r.title.padEnd(35)}│ ${r.dist.toFixed(3)}    │ ${r.score.toFixed(3)} │`;
+     });
+     out += `\n  └──────┴──────────────────────────────────────┴──────────┴───────┘`;
+     return out;
+   }},
+
+  {key:'5', title:'Category Filtering', badge:'Filter', color:'#6366f1',
+   run:(q)=>{
+     const filtered = [
+       {idx:1204,dist:0.412,title:'Big Data là xu hướng công nghệ mới',source:'vnexpress',cat:'thoi_su',score:0.708},
+       {idx:3891,dist:0.523,title:'Tìm hiểu về dữ liệu lớn (Big Data)',source:'vietnamnet',cat:'thoi_su',score:0.657},
+       {idx:2105,dist:0.634,title:'Big Data: Cơ hội và thách thức',source:'tuoitre',cat:'thoi_su',score:0.612},
+       {idx:5672,dist:0.712,title:'Ứng dụng Big Data trong kinh doanh',source:'cafef',cat:'thoi_su',score:0.584},
+       {idx:782,dist:0.723,title:'Khái niệm Big Data và 3V',source:'vnexpress',cat:'thoi_su',score:0.580},
+       {idx:1843,dist:0.847,title:'Tương lai của Big Data tại Việt Nam',source:'vietnamnet',cat:'thoi_su',score:0.541},
+     ];
+     let out = `🔎 CATEGORY FILTERING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Filter:  category == "thoi_su"
+  Result:  15 → 6 documents retained
+
+  ┌──────┬──────────────────────────────────────┬──────────┬──────────┐
+  │  #   │  Title                               │ Distance │ Score    │
+  ├──────┼──────────────────────────────────────┼──────────┼──────────┤`;
+     filtered.forEach((r,i)=>{
+       out += `\n  │  ${String(i+1).padStart(2,' ')}  │  ${r.title.padEnd(35)}│ ${r.dist.toFixed(3)}    │ ${r.score.toFixed(3)}  │`;
+     });
+     out += `\n  └──────┴──────────────────────────────────────┴──────────┴──────────┘
+
+  → Fallback: Nếu không có kết quả trùng chủ đề,
+              dùng toàn bộ 15 kết quả gốc
+  → Latency:  ~1ms`;
+     return out;
+   }},
+
+  {key:'6', title:'MMR Reranking', badge:'Reranker', color:'#8b5cf6',
+   run:()=>{
+     return `⚖️  MMR RERANKING (λ = 0.5)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Goal:  Balance relevance vs. diversity
+  Input: 6 candidates → Output: top-3
+
+  ┌──────┬──────────────────────────────────────┬──────────┬──────────┬──────────┐
+  │  #   │  Title                               │ Relevance│ Diversity│ MMR      │
+  ├──────┼──────────────────────────────────────┼──────────┼──────────┼──────────┤
+  │  1   │  Big Data là xu hướng công nghệ mới  │  0.708   │  0.000   │  0.354   │
+  │  2   │  Khái niệm Big Data và 3V            │  0.580   │  0.312   │  0.134   │
+  │  3   │  Ứng dụng Big Data trong kinh doanh  │  0.584   │  0.287   │  0.149   │
+  └──────┴──────────────────────────────────────┴──────────┴──────────┴──────────┘
+
+  → MMR Score = λ·Rel - (1-λ)·Div
+  → Latency:   ~20ms`;
+   }},
+
+  {key:'7', title:'Relevance Check', badge:'Decision Gate', color:'#10b981',
+   run:()=>{
+     return `🎯 RELEVANCE CHECK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Threshold:   0.30
+
+  Document scores:
+    [1] Big Data là xu hướng công nghệ mới    → 0.708  ✓
+    [2] Khái niệm Big Data và 3V              → 0.580  ✓
+    [3] Ứng dụng Big Data trong kinh doanh    → 0.584  ✓
+
+  Max score:  0.708 ≥ 0.30
+
+  ┌─────────────────────────────────────┐
+  │  DECISION:  USE RAG CONTEXT  ✅     │
+  │  → Prompt with ${'`'}TÀI LIỆU THAM KHẢO${'`'} section   │
+  └─────────────────────────────────────┘
+
+  → Latency:   ~1ms`;
+   }},
+
+  {key:'8', title:'RAG LLM Generation', badge:'LLM', color:'#10b981',
+   run:(q)=>{
+     return `📝 RAG LLM GENERATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Model:  qwen2.5:1.5b (Ollama)
+  Temp:   0.3  |  top_p: 0.9  |  top_k: 40
+
+  PROMPT (truncated):
+  ┌─────────────────────────────────────────────┐
+  │  Bạn là trợ lý AI tiếng Việt...             │
+  │                                             │
+  │  TÀI LIỆU THAM KHẢΟ:                        │
+  │  [1] Big Data là thuật ngữ mô tả tập dữ...  │
+  │  [2] Big Data được định nghĩa bởi 3V:...    │
+  │  [3] Big Data đang được ứng dụng rộng...    │
+  │                                             │
+  │  CÂU HỎI: ${q.padEnd(47)}│
+  └─────────────────────────────────────────────┘
+
+  GENERATED ANSWER:
+  ┌─────────────────────────────────────────────┐
+  │  Big Data (dữ liệu lớn) là thuật ngữ chỉ    │
+  │  các tập dữ liệu có kích thước khổng lồ...  │
+  │                                             │
+  │  Theo tài liệu [1], Big Data được đặc       │
+  │  trưng bởi 3V: Volume (khối lượng lớn),     │
+  │  Velocity (tốc độ xử lý nhanh), và Variety  │
+  │  (đa dạng về định dạng) [2]...              │
+  │                                             │
+  │  Ứng dụng Big Data ngày càng phổ biến       │
+  │  trong nhiều lĩnh vực như kinh tế, y tế,    │
+  │  và giáo dục [3]...                         │
+  └─────────────────────────────────────────────┘
+
+  → Generated tokens:  ~380
+  → Inference time:    ~2.8s`;
+   }},
+
+  {key:'9', title:'Redis Storage', badge:'Database', color:'#06b6d4',
+   run:(q)=>{
+     const sid = `demo_${Date.now()}`;
+     return `💾 REDIS STORAGE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Key:      chat:${sid}
+  Type:     Redis List (RPUSH)
+  TTL:      3600s (1 hour)
+
+  Stored messages:
+  ┌──────┬──────────┬──────────────────────────────────────────┐
+  │  #   │  Role    │  Content (truncated)                     │
+  ├──────┼──────────┼──────────────────────────────────────────┤
+  │  1   │  user    │  ${q.padEnd(40)}│
+  │  2   │  assistant│  Big Data (dữ liệu lớn) là thuật ngữ...   │
+  └──────┴──────────┴──────────────────────────────────────────┘
+
+  → Auto-summary:  Kích hoạt khi >20 messages
+  → LTRIM:         Giữ 11 messages gần nhất sau summary
+  → Operation:     RPUSH + EXPIRE + (optional) LTRIM`;
+   }},
+
+  {key:'10', title:'NDJSON Streaming Response', badge:'Protocol', color:'#f43f5e',
+   run:(q)=>{
+     return `⚡ NDJSON STREAMING RESPONSE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Content-Type:  application/x-ndjson
+  Events:        4 types
+
+  {"type":"token","content":"Big"}
+  {"type":"token","content":" Data"}
+  {"type":"token","content":" (dữ"}
+  {"type":"token","content":" liệu"}
+  {"type":"token","content":" lớn)"}
+  {"type":"token","content":" là"}
+  {"type":"token","content":" thuật"}
+  {"type":"token","content":" ngữ..."}
+  {"type":"token","content":"..."}
+  {"type":"sources","content":[
+    {"title":"Big Data là xu hướng công nghệ mới","score":0.708},
+    {"title":"Khái niệm Big Data và 3V","score":0.580},
+    {"title":"Ứng dụng Big Data trong kinh doanh","score":0.584}
+  ]}
+  {"type":"follow_up","content":[
+    "Big Data khác gì dữ liệu truyền thống?",
+    "Các công cụ Big Data phổ biến là gì?",
+    "Học Big Data bắt đầu từ đâu?"
+  ]}
+  {"type":"done"}`;
+   }}
+];
+
+let demoRunning = false;
+
+function runDemo(){
+  if (demoRunning) return;
+  const input = document.getElementById('demoInput');
+  const query = input.value.trim();
+  if (!query) { input.focus(); return; }
+
+  demoRunning = true;
+  const btn = document.getElementById('btnDemo');
+  const resetBtn = document.getElementById('btnDemoReset');
+  const status = document.getElementById('demoStatus');
+  const output = document.getElementById('demoOutput');
+  const scroll = output.querySelector('.demo-output-scroll');
+
+  btn.disabled = true;
+  resetBtn.disabled = true;
+  output.style.display = 'block';
+  scroll.innerHTML = '';
+  status.textContent = 'Running...';
+  status.style.color = '#fbbf24';
+
+  // Stop auto-play
+  if (isPlaying) toggleAutoPlay();
+  // Reset any existing highlight
+  document.querySelectorAll('.node-rect').forEach(r=>{
+    r.setAttribute('stroke-width','1.5'); r.removeAttribute('filter');
+  });
+
+  let stepIdx = 0;
+
+  function showNextStep(){
+    if (stepIdx >= DEMO_PIPELINE.length) {
+      status.textContent = `✓ Complete (${DEMO_PIPELINE.length} steps)`;
+      status.style.color = '#34d399';
+      btn.disabled = false;
+      resetBtn.disabled = false;
+      demoRunning = false;
+      scroll.scrollTop = scroll.scrollHeight;
+      return;
+    }
+
+    const step = DEMO_PIPELINE[stepIdx];
+    const content = step.run(query);
+
+    // highlight node
+    const node = document.querySelector(`.node-group[data-key="${step.key}"]`);
+    if (node) {
+      const rect = node.querySelector('.node-rect');
+      if (rect) { rect.setAttribute('stroke-width','2.5'); rect.setAttribute('filter','url(#glow)'); }
+    }
+
+    // show task detail in side panel
+    showTaskDetail(step.key);
+
+    // add step to demo output
+    const div = document.createElement('div');
+    div.className = 'demo-step demo-step-enter';
+    div.innerHTML = `
+      <div class="ds-head">
+        <span class="ds-step">STEP ${String(stepIdx+1).padStart(2,'0')}</span>
+        <span class="ds-title">${step.title}</span>
+        <span class="ds-badge" style="border-color:${step.color};color:${step.color}">${step.badge}</span>
+      </div>
+      <div class="ds-body">
+        <pre class="ds-pre">${syntaxHighlight(content)}</pre>
+      </div>
+    `;
+    scroll.appendChild(div);
+
+    status.textContent = `Step ${stepIdx+1}/${DEMO_PIPELINE.length}: ${step.title}`;
+    status.style.color = '#60a5fa';
+    scroll.scrollTop = scroll.scrollHeight;
+
+    stepIdx++;
+    setTimeout(showNextStep, 1200);
+  }
+
+  setTimeout(showNextStep, 400);
+}
+
+function resetDemo(){
+  const output = document.getElementById('demoOutput');
+  const scroll = output.querySelector('.demo-output-scroll');
+  const status = document.getElementById('demoStatus');
+  const btn = document.getElementById('btnDemo');
+  const resetBtn = document.getElementById('btnDemoReset');
+
+  scroll.innerHTML = '';
+  output.style.display = 'none';
+  status.textContent = 'Ready';
+  status.style.color = '#556688';
+  btn.disabled = false;
+  resetBtn.disabled = true;
+
+  // Clear highlights
+  document.querySelectorAll('.node-rect').forEach(r=>{
+    r.setAttribute('stroke-width','1.5'); r.removeAttribute('filter');
+  });
+  document.getElementById('tpPlaceholder').style.display='flex';
+  document.getElementById('tpContent').style.display='none';
+  document.getElementById('stepBadge').textContent='—';
+}
+
+function syntaxHighlight(str){
+  return str
+    .replace(/"[^"]*"/g, m => `<span class="str">${m}</span>`)
+    .replace(/\b(\d+\.\d+)\b/g, '<span class="num">$1</span>')
+    .replace(/\b(true|false)\b/g, '<span class="bool">$1</span>')
+    .replace(/\b(null|undefined)\b/g, '<span class="null">$1</span>')
+    .replace(/→/g, '<span class="arrow">→</span>')
+    .replace(/(✅|❌|DECISION|PREDICTED)/g, '<span style="color:#34d399;font-weight:700">$1</span>');
+}
+
+// Allow Enter key to trigger demo
+document.addEventListener('DOMContentLoaded', ()=>{
+  const inp = document.getElementById('demoInput');
+  if (inp) inp.addEventListener('keydown', e => { if (e.key === 'Enter') runDemo(); });
+});

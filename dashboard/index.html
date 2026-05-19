@@ -11,7 +11,7 @@
 <!-- ===== SIDEBAR ===== -->
 <aside id="sidebar">
   <div class="sb-brand">
-    <span class="sb-logo">🧠</span>
+    <span class="sb-logo"></span>
     <span class="sb-title">RAG Bot<br><small>Ops Dashboard</small></span>
   </div>
   <nav class="sb-nav">
@@ -49,6 +49,36 @@
         <span class="step-badge" id="stepBadge">—</span>
       </div>
     </div>
+
+    <!-- ===== DEMO BAR ===== -->
+    <div class="demo-bar">
+      <div class="demo-bar-left">
+        <span class="demo-icon">🎮</span>
+        <input type="text" id="demoInput" class="demo-input" value="Big Data là gì" placeholder="Nhập câu hỏi tiếng Việt..." spellcheck="false">
+      </div>
+      <div class="demo-bar-right">
+        <button onclick="runDemo()" id="btnDemo" class="btn-demo">▶ Run Demo</button>
+        <button onclick="resetDemo()" class="btn-sm" id="btnDemoReset" disabled>⟲ Reset</button>
+        <span class="step-badge" id="demoStatus">Ready</span>
+      </div>
+    </div>
+
+    <!-- ===== DEMO OUTPUT PANEL ===== -->
+    <div id="demoOutput" class="demo-output" style="display:none">
+      <div class="demo-output-scroll">
+        <div class="demo-step" id="demoStepTpl" style="display:none">
+          <div class="ds-head">
+            <span class="ds-step"></span>
+            <span class="ds-title"></span>
+            <span class="ds-badge"></span>
+          </div>
+          <div class="ds-body">
+            <pre class="ds-pre"></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="pipeline-layout">
       <div class="flow-area">
         <svg id="flowSvg" class="flow-svg" viewBox="0 0 1300 840" fill="none"></svg>
