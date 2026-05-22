@@ -1,11 +1,13 @@
 from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List
 import asyncio
 import json
+import socket
 
-from backend.config import REDIS_HOST, REDIS_PORT, REDIS_DB
+from backend.config import REDIS_HOST, REDIS_PORT, REDIS_DB, OLLAMA_MODEL
 from backend.services.classifier import TextClassifier
 from backend.services.rag import RAG
 from backend.services.llm import generate_stream, expand_query, generate_follow_up, has_relevant_docs
@@ -14,12 +16,53 @@ from backend.services.redis_client import (
     add_chat_message,
     get_chat_history,
     clear_history,
+    register_user,
+    authenticate_user,
+    user_exists,
+    get_user_role,
 )
 
 app = FastAPI(title="RAG Chatbot API", description="API cho chatbot RAG với Redis và streaming")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+def _check_ollama():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(2)
+        s.connect(("127.0.0.1", 11434))
+        s.close()
+        print(f"✅ Ollama đang chạy (model: {OLLAMA_MODEL})")
+    except Exception:
+        print(f"⚠️  Ollama KHÔNG chạy tại 127.0.0.1:11434 — Chạy 'ollama serve' trước khi dùng chatbot")
+
+def _check_redis():
+    if redis_client is None:
+        print(f"⚠️  Redis KHÔNG chạy tại {REDIS_HOST}:{REDIS_PORT}")
+    else:
+        print(f"✅ Redis đang chạy tại {REDIS_HOST}:{REDIS_PORT}")
+
 classifier = TextClassifier()
 retriever = RAG()
+
+@app.on_event("startup")
+async def startup_checks():
+    _check_redis()
+    _check_ollama()
+    defaults = [
+        ("admin", "admin123", "admin"),
+        ("phantrongnguyen0618@gmail.com", "123", "user"),
+        ("smoking", "456", "user"),
+    ]
+    for username, password, role in defaults:
+        if not user_exists(username):
+            register_user(username, password, role)
 
 class ChatRequest(BaseModel):
     session_id: str
@@ -27,6 +70,15 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     answer: str
+
+class AuthRequest(BaseModel):
+    username: str
+    password: str
+
+class RegisterRequest(BaseModel):
+    username: str
+    password: str
+    role: str = "user"
 
 ADMIN_TOKEN = "admin-secret-123"
 
@@ -135,6 +187,30 @@ async def admin_list_sessions():
 async def admin_get_history(session_id: str):
     history = get_chat_history(session_id, max_messages=1000)
     return {"session_id": session_id, "history": history}
+
+@app.post("/auth/register")
+async def auth_register(req: RegisterRequest):
+    if len(req.username) < 3:
+        raise HTTPException(status_code=400, detail="Tên đăng nhập phải có ít nhất 3 ký tự")
+    if len(req.password) < 3:
+        raise HTTPException(status_code=400, detail="Mật khẩu phải có ít nhất 3 ký tự")
+    result = register_user(req.username, req.password, req.role)
+    if not result["success"]:
+        raise HTTPException(status_code=409, detail=result["message"])
+    return {"message": result["message"], "username": req.username}
+
+@app.post("/auth/login")
+async def auth_login(req: AuthRequest):
+    role = authenticate_user(req.username, req.password)
+    if not role:
+        raise HTTPException(status_code=401, detail="Sai tên đăng nhập hoặc mật khẩu")
+    session_id = f"user_{hash(req.username)}"
+    return {
+        "username": req.username,
+        "role": role,
+        "session_id": session_id,
+        "message": "Đăng nhập thành công"
+    }
 
 @app.get("/health")
 async def health_check():

@@ -729,6 +729,81 @@ strong{color:#e0e8f5}
 }
 
 /* ============================================================
+   TOOLTIP
+   ============================================================ */
+.tooltip {
+  position: fixed;
+  z-index: 9999;
+  background: linear-gradient(160deg, #0f1a2e, #0a1120);
+  border: 1px solid #1f3560;
+  border-radius: 10px;
+  padding: 14px 16px;
+  max-width: 340px;
+  min-width: 200px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(59,130,246,0.1);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  transform: translateY(4px);
+}
+.tooltip.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.tt-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.tt-step {
+  background: #162542;
+  border-radius: 4px;
+  padding: 1px 7px;
+  font-size: 9px;
+  font-weight: 700;
+  color: #60a5fa;
+}
+.tt-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e0e8f5;
+}
+.tt-desc {
+  font-size: 11px;
+  color: #7988aa;
+  line-height: 1.6;
+  margin-bottom: 8px;
+}
+.tt-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.tt-tags span {
+  background: #0d172a;
+  border: 1px solid #1c2b4a;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 9px;
+  color: #7aa5e6;
+}
+
+/* ============================================================
+   GLOW ANIMATIONS
+   ============================================================ */
+@keyframes pulseGlow {
+  0%, 100% { filter: drop-shadow(0 0 4px rgba(59,130,246,0.3)); }
+  50% { filter: drop-shadow(0 0 12px rgba(59,130,246,0.6)); }
+}
+.node-group.active .node-rect {
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+/* SMOOTH SCROLL */
+html { scroll-behavior: smooth; }
+
+/* ============================================================
    RESPONSIVE
    ============================================================ */
 @media(max-width:960px){

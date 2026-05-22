@@ -87,7 +87,7 @@ Trả lời dưới dạng JSON array: ["câu hỏi 1?", "câu hỏi 2?", "câu 
             model=OLLAMA_MODEL,
             messages=[{"role": "user", "content": prompt}],
             stream=False,
-            options={"temperature": 0.3}
+            options={"temperature": 0.3, "num_ctx": 1024, "repeat_penalty": 1.1}
         )
         content = stream["message"]["content"].strip()
         match = re.search(r'\[.*?\]', content, re.DOTALL)
@@ -110,6 +110,8 @@ async def generate_stream(query: str, docs: list, session_id: str, category: str
             "temperature": temperature,
             "top_p": 0.9,
             "top_k": 40,
+            "num_ctx": 1024,
+            "repeat_penalty": 1.1,
         }
     }
 
@@ -119,7 +121,13 @@ async def generate_stream(query: str, docs: list, session_id: str, category: str
             content = chunk.get("message", {}).get("content", "")
             if content:
                 yield content
-    except ConnectionError:
-        yield f"\n\n⚠️ **Lỗi kết nối**: Không thể kết nối đến Ollama. Hãy đảm bảo Ollama đang chạy (`ollama serve`)."
     except Exception as e:
-        yield f"\n\n⚠️ **Lỗi**: {str(e)}"
+        err = str(e).lower()
+        is_conn_err = any(kw in err for kw in ["connection", "refused", "econnrefused", "cannot connect", "winerror 10061", "actively refused"])
+        is_mem_err = any(kw in err for kw in ["unable to allocate", "out of memory", "cuda out of memory", "cuda_error"])
+        if is_conn_err:
+            yield f"\n\n⚠️ **Lỗi kết nối**: Không thể kết nối đến Ollama. Hãy đảm bảo Ollama đang chạy (`ollama serve`)."
+        elif is_mem_err:
+            yield f"\n\n⚠️ **Lỗi bộ nhớ**: Máy không đủ RAM/VRAM để chạy model. Hãy thử:\n1. `ollama pull qwen2.5:0.5b` (model nhẹ hơn)\n2. Đóng bớt ứng dụng khác\n3. Khởi động lại Ollama"
+        else:
+            yield f"\n\n⚠️ **Lỗi**: {e}"
