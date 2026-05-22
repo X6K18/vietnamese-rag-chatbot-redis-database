@@ -1,10 +1,10 @@
 import requests
 
 def test_chat():
-    url = "http://127.0.0.1:8000/chat"
+    url = "http://127.0.0.1:8000/chat/sync"
     payload = {
         "session_id": "test_user_123",
-        "query": "Chào bạn, bạn có thể giúp gì cho tôi?"
+        "message": "Chào bạn, bạn có thể giúp gì cho tôi?"
     }
     
     try:
